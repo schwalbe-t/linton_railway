@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Linton Railway</title>
+        <script>
+
+            function createRoom() {
+                const roomCreateRequest = {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                };
+                fetch("/api/rooms/create", roomCreateRequest)
+                    .then(r => r.json())
+                    .then(console.log)
+                    .catch(console.error);
+            }
+
+            function connectWs() {
+                const ws = new WebSocket("wss://localhost:8443/ws/game");
+                ws.addEventListener("open", () => {
+                    console.log("Websocket connected.");
+                });
+                ws.addEventListener("message", (event) => {
+                    console.log("Received: ", event.data);
+                });
+                ws.addEventListener("close", () => {
+                    console.log("Websocket closed.");
+                });
+                window.send = function(message) {
+                    ws.send(message);
+                };
+            }
+
+        </script>
+    </head>
+    <body>
+        <h1>Hello, world!</h1>
+    </body>
+</html>

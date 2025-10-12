@@ -60,9 +60,8 @@ class Room(val id: String) {
 
             override fun update(room: Room) {
                 if(room.connected.size > 0) {
-                    synchronized(room) {
-                        room.state = Room.State.Waiting()
-                    }
+                    room.changeState(Room.State.Waiting())
+                    return
                 }
             }
         }
@@ -73,8 +72,9 @@ class Room(val id: String) {
             val ready = ConcurrentHashMap<String, Boolean>()
 
             override fun update(room: Room) {
-                if(room.connected.size == 0) synchronized(room) {
-                    room.state = Room.State.Dying()
+                if(room.connected.size == 0) {
+                    room.changeState(Room.State.Dying())
+                    return
                 }
                 var allReady: Boolean = true
                 for(playerId in room.connected.keys) {
@@ -84,12 +84,9 @@ class Room(val id: String) {
                     }
                 }
                 if(!allReady) { return }
-                for(connection in room.connected.values) {
-                    socketSendSync(connection.socket, OutEvent.GameStarted())
-                }
-                synchronized(room) {
-                    room.state = Room.State.Playing(Game())
-                }
+                val playing: Map<String, String> = room.connected.entries
+                    .associate { (id, connection) -> id to connection.name }
+                room.changeState(Room.State.Playing(Game(playing)))
             }
         }
 
@@ -97,8 +94,14 @@ class Room(val id: String) {
             override val typeString: String = "playing"
 
             override fun update(room: Room) {
-                if(room.connected.size == 0) synchronized(room) {
-                    room.state = Room.State.Dying()
+                if(room.connected.size == 0) {
+                    room.changeState(Room.State.Dying())
+                    return
+                }
+                this.game.update()
+                if(this.game.hasEnded()) {
+                    room.changeState(Room.State.Waiting())
+                    return
                 }
             }
         }
@@ -107,6 +110,13 @@ class Room(val id: String) {
     var state: State = State.Waiting()
     val connected = ConcurrentHashMap<String, Room.Connection>()
 
+    fun changeState(newState: State) {
+        synchronized(this) {
+            this.state = newState
+        }
+        this.broadcastRoomInfo()
+    }
+
     fun connect(playerId: String, name: String, socket: WebSocketSession) {
         this.connected[playerId] = Room.Connection(name, socket)
         this.broadcastRoomInfo()
@@ -114,6 +124,10 @@ class Room(val id: String) {
 
     fun disconnect(playerId: String) {
         this.connected.remove(playerId)
+        val state: State = synchronized(this) { this.state }
+        if(state is State.Playing) {
+            state.game.onPlayerDisconnect(playerId)
+        }
         this.broadcastRoomInfo()
     }
 
@@ -179,11 +193,6 @@ sealed class OutEvent {
     data class RoomInfo(
         val players: List<EventPlayerInfo>, val state: String
     ): OutEvent()
-
-    // used to tell the client that the game has started
-    @Serializable
-    @SerialName("game_started")
-    class GameStarted(): OutEvent()
 
     // used to notify the clients about an internal server error
     // (usually uncaught exception in the game logic)
@@ -334,7 +343,7 @@ class RoomWebSocketConfig(
 ): WebSocketConfigurer {
 
     override fun registerWebSocketHandlers(registry: WebSocketHandlerRegistry) {
-        registry.addHandler(roomWebSocketHandler, "/ws/game")
+        registry.addHandler(roomWebSocketHandler, "/ws/room")
             .setAllowedOrigins("*")
     }
 

@@ -1,8 +1,10 @@
 
+let roomId = null;
+
 window.addEventListener("load", () => {
     document.title = getLocalized("titlebar");
     const params = new URLSearchParams(window.location.search);
-    const roomId = params.get("id");
+    roomId = params.get("id");
     if(!roomId) {
         return exitPage();
     }
@@ -39,14 +41,18 @@ function updateWaiting(players) {
     const playerList = document.getElementById("waiting-player-list");
     playerList.innerHTML = "";
     for(const player of players) {
-        const name = document.createElement("div");
+        const name = document.createElement("span");
         name.innerText = player.name;
-        const isReady = document.createElement("div");
+        const isReady = document.createElement("span");
+        isReady.classList.add(
+            player.isReady? "player-status-ready" : "player-status-not-ready"
+        );
         isReady.innerText = getLocalized(
             player.isReady? "playerReady" : "playerNotReady"
         );
         isReady.style.visibility = roomIsPlaying? "hidden" : "visible";
         const playerCont = document.createElement("div");
+        playerCont.classList.add("player-info-container");
         playerCont.appendChild(name);
         playerCont.appendChild(isReady);
         playerList.appendChild(playerCont);
@@ -54,7 +60,7 @@ function updateWaiting(players) {
     isReady = isReady && !roomIsPlaying;
     if(roomIsPlaying) { isReady = false; }
     const getReady = document.getElementById("get-ready");
-    getReady.style.display = (isReady || roomIsPlaying)? "none" : "block";
+    getReady.disabled = isReady;
     getReady.onclick = () => {
         isReady = true;
         socket.send(JSON.stringify({
@@ -91,10 +97,9 @@ function connectWebsocket(roomId, username) {
         onSocketEvent(event);
     });
     socket.addEventListener("close", () => {
-        if(!roomCrashed) { return exitPage(); }
-        // TODO! ACTUAL HANDLING
-        alert("Room crashed??? >:)");
-        return exitPage();
+        if(!roomCrashed) {
+            return exitPage();
+        }
     });
 }
 
@@ -124,6 +129,8 @@ function onSocketEvent(event) {
         }
         case "room_crashed": {
             roomCrashed = true;
+            document.getElementById("room-crashed-overlay")
+                .style.display = "block";
             break;
         }
     }

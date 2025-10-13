@@ -3,22 +3,37 @@
     <head>
         <meta charset="utf-8">
         <title>Linton Railway</title>
+        <link rel="stylesheet" href="style.css">
+        <link rel="stylesheet" href="index.css">
         <script src="scripts/localization.js"></script>
         <script src="scripts/index.js"></script>
     </head>
     <body>
-        <button onclick="setSelectedLocale('en')">🇬🇧</button>
-        <button onclick="setSelectedLocale('de')">🇩🇪</button>
-        <button onclick="setSelectedLocale('bg')">🇧🇬</button>
+        <a href="https://github.com/schwalbe-t/linton_railway/">
+            <img src="res/github-mark-white.svg" id="github-link">
+        </a>
+        <div id="language-selector">
+            <button onclick="setSelectedLocale('en')">🇬🇧</button>
+            <button onclick="setSelectedLocale('de')">🇩🇪</button>
+            <button onclick="setSelectedLocale('bg')">🇧🇬</button>
+        </div>
         <div id="main-page">
-            <h1 localized="title"></h1>
-            <button localized="createPrivateRoom" onclick="createRoom(false)"></button>
-            <span id="room-create-error"></span>
+            <div id="title-container">
+                <h1 localized="title"></h1>
+                <p localized="gameDescription"></p>
+            </div>
+            <div id="room-selector">
+                <button localized="joinPublicRoom" class="button-big" disabled></button>
+                <br>
+                <button localized="createPrivateRoom" class="button-big" onclick="createRoom()"></button>
+                <div id="room-create-error"></div>
+            </div>
         </div>
         <div id="join-page" style="display: none">
             <h1 localized="joinRoom"></h1>
-            <span localized="usernameInput"></span>
-            <input type="text" maxlength="32" id="join-room-username">
+            <p localized="enterNicknamePrompt"></p>
+            <input type="text" maxlength="32" id="join-room-username" placeholderLocalized="usernameInput">
+            <br>
             <button localized="joinRoom" id="confirm-join-room" disabled></button>
         </div>
     </body>

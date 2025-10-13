@@ -1,0 +1,57 @@
+
+#title-container {
+    position: absolute;
+    top: 25%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60vmin;
+}
+#title-container > h1 {
+    text-wrap: nowrap;
+    text-align: center;
+    font-size: 4rem;
+}
+#title-container > p {
+    width: 100%;
+}
+#room-selector {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+#room-selector > button {
+    min-width: 30vmin;
+}
+#room-create-error {
+    margin-top: 0.5rem;
+    color: var(--red);
+}
+
+#github-link {
+    position: absolute;
+    top: 2rem;
+    left: 2rem;
+    height: 2rem;
+}
+
+#language-selector {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+}
+
+#join-page {
+    position: absolute;
+    top: 50vh;
+    left: 50vw;
+    width: 50vmin;
+    transform: translate(-50%, -50%);
+    background: var(--bg-mid);
+    padding: 3rem;
+    border-radius: 1rem;
+}
+#join-room-username {
+    width: 100%;
+}

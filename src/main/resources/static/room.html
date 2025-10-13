@@ -3,19 +3,33 @@
     <head>
         <meta charset="utf-8">
         <title>Linton Railway</title>
+        <link rel="stylesheet" href="style.css">
+        <link rel="stylesheet" href="room.css">
         <script src="scripts/localization.js"></script>
         <script src="scripts/room.js"></script>
     </head>
     <body>
         <div id="waiting-page" style="display: none">
-            <h1 localized="title"></h1>
-            <button id="copy-invite-link" localized="copyInviteLink"></button>
-            <h3 localized="players"></h3>
-            <div id="waiting-player-list"></div>
-            <button id="get-ready" localized="getReady" style="display: none"></button>
+            <div id="waiting-title">
+                <a href="/"><h1 localized="title"></h1></a>
+                <p localized="waitingForPlayers"></p>
+            </div>
+            <div id="waiting-players-container">
+                <h2 localized="players"></h2>
+                <div id="waiting-player-list"></div>
+                <button id="get-ready" localized="getReady"></button>
+                <button id="copy-invite-link" localized="copyInviteLink"></button>
+            </div>
         </div>
         <div id="game-page" style="display: none">
-            Gaming
+            (this is where the game would start, work in progress)
+        </div>
+        <div id="room-crashed-overlay" style="display: none">
+            <div id="room-crashed-message" class="light-mode">
+                <h1 localized="roomCrashedTitle"></h1>
+                <p localized="roomCrashDescription"></p>
+                <button localized="roomCrashBackToStart" onclick="exitPage()"></button>
+            </div>
         </div>
     </body>
 </html>

@@ -19,7 +19,7 @@ window.addEventListener('popstate', () => {
     location.reload();
 });
 
-function createRoom(isPublic) {
+function createRoom() {
     const roomCreateRequest = {
         method: "POST",
         headers: {

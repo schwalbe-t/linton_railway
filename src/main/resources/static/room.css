@@ -1,0 +1,52 @@
+
+#room-crashed-overlay {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    width: 100vw;
+    height: 100vh;
+    backdrop-filter: blur(0.2rem);
+}
+#room-crashed-message {
+    position: absolute;
+    top: 50vh;
+    left: 50vw;
+    width: 50vmin;
+    transform: translate(-50%, -50%);
+    padding: 3rem;
+    border-radius: 0.5rem;
+    background: var(--bg-back);
+}
+
+#waiting-title {
+    position: absolute;
+    top: 2rem;
+    left: 2rem;
+}
+#waiting-players-container {
+    position: absolute;
+    top: 50vh;
+    left: 50vw;
+    width: 50vmin;
+    transform: translate(-50%, -50%);
+    background: var(--bg-mid);
+    padding: 3rem;
+    border-radius: 0.5rem;
+}
+#waiting-player-list {
+    width: 100%;
+    padding: 1rem 0 1rem 0;
+    max-height: 50vh;
+    overflow: auto;
+}
+.player-info-container {
+    padding: 0.25rem 0 0.25rem 0;
+    color: var(--text-main);
+}
+.player-status-ready { color: var(--green); }
+.player-status-not-ready { color: var(--red); }
+.player-status-ready, .player-status-not-ready {
+    margin-left: 0.5rem;
+    font-size: 0.8rem;
+}
+#copy-invite-link { float: right; }

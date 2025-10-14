@@ -24,11 +24,18 @@
         <div id="game-page" style="display: none">
             (this is where the game would start, work in progress)
         </div>
-        <div id="room-crashed-overlay" style="display: none">
-            <div id="room-crashed-message" class="light-mode">
+        <div id="room-crashed-overlay" class="room-error-overlay" style="display: none">
+            <div class="room-error-message light-mode">
                 <h1 localized="roomCrashedTitle"></h1>
                 <p localized="roomCrashDescription"></p>
-                <button localized="roomCrashBackToStart" onclick="exitPage()"></button>
+                <button localized="roomErrorBackToStart" onclick="exitPage()"></button>
+            </div>
+        </div>
+        <div id="client-disconnect-overlay" class="room-error-overlay" style="display: none">
+            <div class="room-error-message light-mode">
+                <h1 localized="clientDisconnectedTitle"></h1>
+                <p localized="clientDisconnectedDescription"></p>
+                <button localized="roomErrorBackToStart" onclick="exitPage()"></button>
             </div>
         </div>
     </body>

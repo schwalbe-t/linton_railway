@@ -109,6 +109,21 @@ class Room(val id: String) {
 
     var state: State = State.Waiting()
     val connected = ConcurrentHashMap<String, Room.Connection>()
+    var owner: String? = null
+
+    fun update() {
+        synchronized(this) {
+            val prevOwner: String? = this.owner
+            if(prevOwner == null || !this.connected.containsKey(prevOwner)) {
+                this.owner = this.connected.keys.firstOrNull()
+                if(this.owner != prevOwner) {
+                    this.broadcastRoomInfo()
+                }
+            }
+        }
+        val state: State = synchronized(this) { this.state }
+        state.update(this)
+    }
 
     fun changeState(newState: State) {
         synchronized(this) {
@@ -156,7 +171,9 @@ class Room(val id: String) {
     fun broadcastRoomInfo() {
         val playerInfo: List<EventPlayerInfo> = this.getPlayerInfo()
         val stateStr: String = synchronized(this) { this.state.typeString }
-        val event: OutEvent = OutEvent.RoomInfo(playerInfo, stateStr)
+        val owner: String = synchronized(this) { this.owner } 
+            ?: "" // if there is no owner there is no player to broadcast to
+        val event: OutEvent = OutEvent.RoomInfo(playerInfo, owner, stateStr)
         val message: String = Json.encodeToString<OutEvent>(event)
         for(connection in this.connected.values) {
             socketSendSyncRaw(connection.socket, message)
@@ -191,7 +208,9 @@ sealed class OutEvent {
     @Serializable
     @SerialName("room_info")
     data class RoomInfo(
-        val players: List<EventPlayerInfo>, val state: String
+        val players: List<EventPlayerInfo>, 
+        val owner: String, 
+        val state: String
     ): OutEvent()
 
     // used to notify the clients about an internal server error

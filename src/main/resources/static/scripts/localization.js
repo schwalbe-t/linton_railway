@@ -18,12 +18,10 @@ const LOCALIZATION = Object.freeze({
         "bg": "Линтън Рейлуей"
     },
     "gameDescription": {
-        "en": `...is a browser party game about managing trains on a model railway
- together with friends or strangers. Which of you can keep their part of the network running
- the longest, while also minimizing delays?`,
-        "de": `...ist ein Browser-Partyspiel, bei dem du Züge auf einer Modelleisenbahn
-gemeinsam mit Freunden oder Fremden verwaltest. Wer von euch kann sein Teil des Netzwerks
-am längsten am Laufen halten und gleichzeitig Verspätungen minimieren?`,
+        "en": `...is a browser party game about managing trains on a model railway.
+ Will you work together to maximize profit or deceive each other to gain an advantage?`,
+        "de": `...ist ein Browser-Partyspiel, bei dem du Züge auf einer Modelleisenbahn verwaltest. 
+ Arbeitet ihr zusammen, um Gewinne zu maximieren, oder täuscht ihr euch gegenseitig, um einen Vorteil zu erlangen?`,
         "bg": null
     },
 
@@ -84,7 +82,17 @@ am längsten am Laufen halten und gleichzeitig Verspätungen minimieren?`,
  melden könnten und beschreiben würden, was vor dem Absturz passiert ist.`,
         "bg": null
     },
-    "roomCrashBackToStart": {
+    "clientDisconnectedTitle": {
+        "en": "Whoops! You were disconnected :(",
+        "de": "Ups! Verbindung getrennt :(",
+        "bg": null,
+    },
+    "clientDisconnectedDescription": {
+        "en": "Your connection to the game room was unexpectedly closed.",
+        "de": "Die Verbindung zum Spielraum wurde unerwartet getrennt.",
+        "bg": null
+    },
+    "roomErrorBackToStart": {
         "en": "Back to Start",
         "de": "Zurück zum Start",
         "bg": null
@@ -94,6 +102,11 @@ am längsten am Laufen halten und gleichzeitig Verspätungen minimieren?`,
         "en": "Copy Invitation Link",
         "de": "Einladungslink Kopieren",
         "bg": null
+    },
+    "inviteLinkCopied": {
+        "en": "Copied!",
+        "de": "Kopiert!",
+        "bg": null,
     },
     "players": {
         "en": "Players",

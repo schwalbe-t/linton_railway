@@ -13,9 +13,18 @@ window.addEventListener("load", () => {
             window.location.href = `/join?id=${roomId}`;
         }, 100);
     }
-    document.getElementById("copy-invite-link").onclick = () => {
+    const copyInvLink = document.getElementById("copy-invite-link");
+    copyInvLink.onclick = () => {
         const origin = window.location.origin;
         navigator.clipboard.writeText(`${origin}/join?id=${roomId}`);
+        const prevText = copyInvLink.innerHTML;
+        copyInvLink.style.width = `${copyInvLink.offsetWidth}px`;
+        copyInvLink.innerHTML = getLocalized("inviteLinkCopied");
+        copyInvLink.disabled = true;
+        setTimeout(() => {
+            copyInvLink.innerHTML = prevText;
+            copyInvLink.disabled = false;
+        }, 1000);
     };
     connectWebsocket(roomId, localStorage.username);
 });
@@ -54,6 +63,12 @@ function updateWaiting(players) {
         const playerCont = document.createElement("div");
         playerCont.classList.add("player-info-container");
         playerCont.appendChild(name);
+        if(player.id === roomOwnerId) {
+            const isOwner = document.createElement("img");
+            isOwner.classList.add("player-status-room-owner");
+            isOwner.src = "res/settings-gear.svg";
+            playerCont.appendChild(isOwner);
+        }
         playerCont.appendChild(isReady);
         playerList.appendChild(playerCont);
     }
@@ -75,7 +90,7 @@ function showPlaying() {
 }
 
 let socket;
-let roomCrashed = false;
+let crashed = false;
 
 function connectWebsocket(roomId, username) {
     socket = new WebSocket("wss://localhost:8443/ws/room");
@@ -97,13 +112,15 @@ function connectWebsocket(roomId, username) {
         onSocketEvent(event);
     });
     socket.addEventListener("close", () => {
-        if(!roomCrashed) {
-            return exitPage();
-        }
+        if(crashed) { return; }
+        crashed = true;
+        document.getElementById("client-disconnect-overlay")
+            .style.display = "block";
     });
 }
 
 let playerId;
+let roomOwnerId;
 
 function onSocketEvent(event) {
     switch(event.type) {
@@ -116,6 +133,7 @@ function onSocketEvent(event) {
             break;
         }
         case "room_info": {
+            roomOwnerId = event.owner;
             const playing = event.state === "playing";
             if(!playing && roomIsPlaying) {
                 showWaiting();
@@ -128,7 +146,7 @@ function onSocketEvent(event) {
             break;
         }
         case "room_crashed": {
-            roomCrashed = true;
+            crashed = true;
             document.getElementById("room-crashed-overlay")
                 .style.display = "block";
             break;

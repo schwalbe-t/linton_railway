@@ -1,5 +1,5 @@
 
-#room-crashed-overlay {
+.room-error-overlay {
     position: absolute;
     top: 0px;
     left: 0px;
@@ -7,7 +7,7 @@
     height: 100vh;
     backdrop-filter: blur(0.2rem);
 }
-#room-crashed-message {
+.room-error-message {
     position: absolute;
     top: 50vh;
     left: 50vw;
@@ -45,6 +45,12 @@
 }
 .player-status-ready { color: var(--green); }
 .player-status-not-ready { color: var(--red); }
+.player-status-room-owner {
+    color: var(--bg-front);
+    height: 1.25rem;
+    margin-left: 0.25rem;
+    transform: translate(0%, 17.5%);
+}
 .player-status-ready, .player-status-not-ready {
     margin-left: 0.5rem;
     font-size: 0.8rem;

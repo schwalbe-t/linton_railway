@@ -17,8 +17,7 @@ class Heartbeat {
         val tasks = roomRegistry.rooms.entries.map { (roomId, room) ->
             Callable {
                 try {
-                    val state: Room.State = synchronized(room) { room.state }
-                    state.update(room)
+                    room.update()
                 } catch(ex: Exception) {
                     System.err.println("Room ${roomId} threw an uncaught exception during state update!")
                     ex.printStackTrace()

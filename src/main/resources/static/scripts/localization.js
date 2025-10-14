@@ -132,6 +132,83 @@ const LOCALIZATION = Object.freeze({
         "en": "I Am Ready",
         "de": "Ich Bin Bereit",
         "bg": null
+    },
+
+    "roomSettings": {
+        "en": "Room Settings",
+        "de": "Raumeinstellungen",
+        "bg": null
+    },
+    "roomSettingVisibility": {
+        "en": "Room Visibility",
+        "de": "Raumsichtbarkeit",
+        "bg": null
+    },
+    "roomSettingVisibilityValues": {
+        "en": ["Private", "Public"],
+        "de": ["Privat", "Offen"],
+        "bg": [null, null]
+    },
+    "gameSettings": {
+        "en": "Game Settings",
+        "de": "Spieleinstellungen",
+        "bg": null
+    },
+    "gameSettingTrainNameLanguage": {
+        "en": "Train Name Language",
+        "de": "Sprache von Zugnamen",
+        "bg": null
+    },
+    "gameSettingTrainNameLanguageValues": {
+        "en": ["🇬🇧", "🇩🇪", "🇧🇬"],
+        "de": ["🇬🇧", "🇩🇪", "🇧🇬"],
+        "bg": ["🇬🇧", "🇩🇪", "🇧🇬"]
+    },
+    "gameSettingTrainNameReliability": {
+        "en": "Reliability of Train Names",
+        "de": "Zuverlässigkeit von Zugnamen",
+        "bg": null
+    },
+    "gameSettingTrainNameReliabilityValues": {
+        "en": ["Low", "Neutral", "High"],
+        "de": ["Niedrig", "Neutral", "Hoch"],
+        "bg": [null, null, null]
+    },
+    "gameSettingTrainNameChanges": {
+        "en": "Train Name Changes Allowed",
+        "de": "Änderungen an Zugnamen Erlaubt",
+        "bg": null
+    },
+    "gameSettingTrainNameChangesValues": {
+        "en": ["No", "Yes"],
+        "de": ["Nein", "Ja"],
+        "bg": [null, null]
+    },
+    "gameSettingTrainStyles": {
+        "en": "Varied Train Styles",
+        "de": "Variierte Zugstile",
+        "bg": null
+    },
+    "gameSettingTrainStylesValues": {
+        "en": ["No", "Yes"],
+        "de": ["Nein", "Ja"],
+        "bg": [null, null]
+    },
+    "gameSettingTrainLength": {
+        "en": "Train Length",
+        "de": "Zuglänge",
+        "bg": null
+    },
+    "gameSettingTrainLengthValues": {
+        "en": ["Short", "Medium", "Long"],
+        "de": ["Kurz", "Medium", "Lang"],
+        "bg": [null, null, null]
+    },
+
+    "chatSendMessage": {
+        "en": "Send",
+        "de": "Senden",
+        "bg": null
     }
 
 });

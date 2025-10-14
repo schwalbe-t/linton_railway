@@ -20,6 +20,35 @@
                 <button id="get-ready" localized="getReady"></button>
                 <button id="copy-invite-link" localized="copyInviteLink"></button>
             </div>
+            <div id="settings-container">
+                <h2 localized="roomSettings"></h2>
+                <div class="setting-container">
+                    <div><div localized="roomSettingVisibility"></div></div>
+                    <button id="room-setting-is-public"></button>
+                </div>
+                <br><br>
+                <h2 localized="gameSettings"></h2>
+                <div class="setting-container">
+                    <div><div localized="gameSettingTrainNameLanguage"></div></div>
+                    <button id="game-setting-train-name-language"></button>
+                </div>
+                <div class="setting-container">
+                    <div><div localized="gameSettingTrainNameReliability"></div></div>
+                    <button id="game-setting-train-name-reliability"></button>
+                </div>
+                <div class="setting-container">
+                    <div><div localized="gameSettingTrainNameChanges"></div></div>
+                    <button id="game-setting-train-name-changes"></button>
+                </div>
+                <div class="setting-container">
+                    <div><div localized="gameSettingTrainStyles"></div></div>
+                    <button id="game-setting-varied-train-styles"></button>
+                </div>
+                <div class="setting-container">
+                    <div><div localized="gameSettingTrainLength"></div></div>
+                    <button id="game-setting-train-length"></button>
+                </div>
+            </div>
         </div>
         <div id="game-page" style="display: none">
             (this is where the game would start, work in progress)
@@ -37,6 +66,11 @@
                 <p localized="clientDisconnectedDescription"></p>
                 <button localized="roomErrorBackToStart" onclick="exitPage()"></button>
             </div>
+        </div>
+        <div id="chat-container">
+            <div id="chat-message-list"></div>
+            <input type="text" maxlength="256" id="chat-message-input">
+            <button localized="chatSendMessage" id="chat-message-send"></button>
         </div>
     </body>
 </html>

@@ -38,6 +38,48 @@ inline fun socketSendSync(socket: WebSocketSession, message: OutEvent) {
 }
 
 
+@Serializable
+data class RoomSettings(
+    val roomIsPublic: Boolean,
+    val trainNameLanguage: RoomSettings.TrainNameLanguage,
+    val trainNameReliability: RoomSettings.TrainNameReliability,
+    val trainNameChanges: Boolean,
+    val variedTrainStyles: Boolean,
+    val trainLength: RoomSettings.TrainLength
+) {
+    @Serializable
+    enum class TrainNameLanguage {
+        @SerialName("en") ENGLISH,
+        @SerialName("de") GERMAN,
+        @SerialName("bg") BULGARIAN
+    }
+
+    @Serializable
+    enum class TrainNameReliability {
+        @SerialName("low") LOW,
+        @SerialName("neutral") NEUTRAL,
+        @SerialName("high") HIGH
+    }
+
+    @Serializable
+    enum class TrainLength {
+        @SerialName("short") SHORT,
+        @SerialName("medium") MEDIUM,
+        @SerialName("long") LONG
+    }
+
+    companion object {
+        fun default(): RoomSettings = RoomSettings(
+            roomIsPublic = false,
+            trainNameLanguage = TrainNameLanguage.ENGLISH,
+            trainNameReliability = TrainNameReliability.NEUTRAL,
+            trainNameChanges = true,
+            variedTrainStyles = true,
+            trainLength = TrainLength.MEDIUM
+        )
+    }
+}
+
 class Room(val id: String) {
 
     companion object {
@@ -110,6 +152,7 @@ class Room(val id: String) {
     var state: State = State.Waiting()
     val connected = ConcurrentHashMap<String, Room.Connection>()
     var owner: String? = null
+    var settings: RoomSettings = RoomSettings.default()
 
     fun update() {
         synchronized(this) {
@@ -173,10 +216,19 @@ class Room(val id: String) {
         val stateStr: String = synchronized(this) { this.state.typeString }
         val owner: String = synchronized(this) { this.owner } 
             ?: "" // if there is no owner there is no player to broadcast to
-        val event: OutEvent = OutEvent.RoomInfo(playerInfo, owner, stateStr)
+        val settings: RoomSettings = synchronized(this) { this.settings }
+        val event: OutEvent = OutEvent.RoomInfo(
+            playerInfo, owner, settings, stateStr
+        )
         val message: String = Json.encodeToString<OutEvent>(event)
         for(connection in this.connected.values) {
             socketSendSyncRaw(connection.socket, message)
+        }
+    }
+
+    fun isOwner(playerId: String): Boolean {
+        synchronized(this) {
+            return this.owner == playerId
         }
     }
 
@@ -209,7 +261,8 @@ sealed class OutEvent {
     @SerialName("room_info")
     data class RoomInfo(
         val players: List<EventPlayerInfo>, 
-        val owner: String, 
+        val owner: String,
+        val sett: RoomSettings,
         val state: String
     ): OutEvent()
 
@@ -219,6 +272,11 @@ sealed class OutEvent {
     @Serializable
     @SerialName("room_crashed")
     class RoomCrashed(): OutEvent()
+
+    // broadcast of client message to all clients connected to the room
+    @Serializable
+    @SerialName("chat_message")
+    class ChatMessage(val senderName: String, val contents: String): OutEvent()
 }
 
 @Serializable
@@ -239,6 +297,29 @@ sealed class InEvent {
     @Serializable
     @SerialName("is_ready")
     class IsReady(): InEvent()
+
+    // client tells the server that it wishes to kick a player
+    // (needs to be owner of the room)
+    @Serializable
+    @SerialName("kick_player")
+    data class KickPlayer(val kickedId: String): InEvent()
+
+    // client tells the server the new room settings
+    // (needs to be owner of the room)
+    // cause a room info broadcast
+    @Serializable
+    @SerialName("configure_room")
+    data class ConfigureRoom(val newSettings: RoomSettings): InEvent()
+
+    // client sends all players in the room a message
+    // needs to be under 256 characters
+    @Serializable
+    @SerialName("chat_message")
+    data class ChatMessage(val contents: String): InEvent() {
+        companion object {
+            val LENGTH_LIMIT: Int = 256
+        }
+    }
 }
 
 @Component
@@ -333,6 +414,42 @@ class RoomWebSocketHandler: TextWebSocketHandler() {
                 if(state is Room.State.Waiting) {
                     state.ready[playerId] = true
                     room.broadcastRoomInfo()
+                }
+            }
+            is InEvent.KickPlayer -> {
+                if(!room.isOwner(playerId)) {
+                    socketSendSync(session, OutEvent.InvalidMessage(
+                        "Client does not have the necessary permissions"
+                    ))
+                    return
+                }
+                room.connected[event.kickedId]?.socket?.close()
+            }
+            is InEvent.ConfigureRoom -> {
+                if(!room.isOwner(playerId)) {
+                    socketSendSync(session, OutEvent.InvalidMessage(
+                        "Client does not have the necessary permissions"
+                    ))
+                    return
+                }
+                synchronized(room) {
+                    room.settings = event.newSettings
+                }
+                room.broadcastRoomInfo()
+            }
+            is InEvent.ChatMessage -> {
+                if(event.contents.length > InEvent.ChatMessage.LENGTH_LIMIT) {
+                    socketSendSync(session, OutEvent.InvalidMessage(
+                        "Chat message is too long"
+                    ))
+                    return
+                }
+                val senderName: String? = room.connected[playerId]?.name
+                if(senderName == null) { return }
+                for(connection in room.connected.values) {
+                    socketSendSync(connection.socket, OutEvent.ChatMessage(
+                        senderName, event.contents
+                    ))
                 }
             }
         }

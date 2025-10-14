@@ -27,9 +27,26 @@ window.addEventListener("load", () => {
         }, 1000);
     };
     connectWebsocket(roomId, localStorage.username);
+    const chatMessageInput = document.getElementById("chat-message-input");
+    const chatMessageSend = document.getElementById("chat-message-send");
+    const sendTextMessage = () => {
+        if(!socket) { return; }
+        socket.send(JSON.stringify({
+            type: "chat_message",
+            contents: chatMessageInput.value
+        }));
+        chatMessageInput.value = "";
+    };
+    chatMessageSend.onclick = sendTextMessage;
+    chatMessageInput.addEventListener("keyup", e => {
+        if(e.key !== "Enter") { return; }
+        sendTextMessage();
+    });
 });
 
+let exitingPage = false;
 function exitPage() {
+    exitingPage = true;
     setTimeout(() => {
         window.location.href = "/";
     }, 100);
@@ -59,7 +76,6 @@ function updateWaiting(players) {
         isReady.innerText = getLocalized(
             player.isReady? "playerReady" : "playerNotReady"
         );
-        isReady.style.visibility = roomIsPlaying? "hidden" : "visible";
         const playerCont = document.createElement("div");
         playerCont.classList.add("player-info-container");
         playerCont.appendChild(name);
@@ -70,6 +86,32 @@ function updateWaiting(players) {
             playerCont.appendChild(isOwner);
         }
         playerCont.appendChild(isReady);
+        if(playerId === roomOwnerId) {
+            const kickPlayer = document.createElement("button");
+            kickPlayer.classList.add("player-kick-button");
+            kickPlayer.onclick = () => {
+                socket.send(JSON.stringify({
+                    type: "kick_player",
+                    kickedId: player.id
+                }));
+            }
+            kickPlayer.disabled = player.id === playerId;
+            if(player.id !== playerId) {
+                const brightIcon = document.createElement("img");
+                brightIcon.classList.add("button-icon");
+                brightIcon.src = "res/power-off-bright.svg";
+                kickPlayer.appendChild(brightIcon);
+                const darkIcon = document.createElement("img");
+                darkIcon.classList.add("button-icon-hover");
+                darkIcon.src = "res/power-off-dark.svg";
+                kickPlayer.appendChild(darkIcon);
+            } else {
+                const disabledIcon = document.createElement("img");
+                disabledIcon.src = "res/power-off-disabled.svg";
+                kickPlayer.appendChild(disabledIcon);
+            }
+            playerCont.appendChild(kickPlayer);
+        }
         playerList.appendChild(playerCont);
     }
     isReady = isReady && !roomIsPlaying;
@@ -82,6 +124,80 @@ function updateWaiting(players) {
             type: "is_ready"
         }));
     };
+    updateSettings();
+}
+
+const SETTING_PROPERTIES = Object.freeze({
+    roomIsPublic: {
+        values: [false, true],
+        valuesLocalized: "roomSettingVisibilityValues",
+        buttonId: "room-setting-is-public",
+        buttonClasses: [["setting-negative"], ["setting-positive"]]
+    },
+    
+    trainNameLanguage: {
+        values: ["en", "de", "bg"],
+        valuesLocalized: "gameSettingTrainNameLanguageValues",
+        buttonId: "game-setting-train-name-language",
+        buttonClasses: [[], [], []]
+    },
+    trainNameReliability: {
+        values: ["low", "neutral", "high"],
+        valuesLocalized: "gameSettingTrainNameReliabilityValues",
+        buttonId: "game-setting-train-name-reliability",
+        buttonClasses: [["setting-negative"], [], ["setting-positive"]]
+    },
+    trainNameChanges: {
+        values: [false, true],
+        valuesLocalized: "gameSettingTrainNameChangesValues",
+        buttonId: "game-setting-train-name-changes",
+        buttonClasses: [["setting-negative"], ["setting-positive"]]
+    },
+    variedTrainStyles: {
+        values: [false, true],
+        valuesLocalized: "gameSettingTrainStylesValues",
+        buttonId: "game-setting-varied-train-styles",
+        buttonClasses: [["setting-negative"], ["setting-positive"]]
+    },
+    trainLength: {
+        values: ["short", "medium", "long"],
+        valuesLocalized: "gameSettingTrainLengthValues",
+        buttonId: "game-setting-train-length",
+        buttonClasses: [["setting-positive"], [], ["setting-negative"]]
+    }
+});
+
+let settings = {
+    roomIsPublic: false,
+    trainNameLanguage: "en",
+    trainNameReliability: "neutral",
+    trainNameChanges: true,
+    variedTrainStyles: true,
+    trainLength: "medium"
+};
+
+function updateSettings() {
+    for(const settingName of Object.keys(SETTING_PROPERTIES)) {
+        const settingProps = SETTING_PROPERTIES[settingName];
+        const button = document.getElementById(settingProps.buttonId);
+        const valueIdx = settingProps.values.indexOf(settings[settingName]);
+        // if valueIdx === 0 then valueIdx + 1 will be 0 :)
+        const nextValueIdx = (valueIdx + 1) % settingProps.values.length;
+        button.innerText = getLocalized(settingProps.valuesLocalized)[valueIdx];
+        button.classList.remove(...button.classList);
+        button.classList.add(...settingProps.buttonClasses[valueIdx]);
+        button.disabled = playerId !== roomOwnerId;
+        button.onclick = () => {
+            settings[settingName] = settingProps.values[nextValueIdx];
+            if(socket) {
+                socket.send(JSON.stringify({
+                    type: "configure_room",
+                    newSettings: settings
+                }));
+            }
+            updateSettings();
+        };
+    }
 }
 
 function showPlaying() {
@@ -107,12 +223,13 @@ function connectWebsocket(roomId, username) {
         try {
             event = JSON.parse(e.data);
         } catch(e) {
-            return exitPage();
+            socket.close();
+            throw e;
         }
         onSocketEvent(event);
     });
     socket.addEventListener("close", () => {
-        if(crashed) { return; }
+        if(crashed || exitingPage) { return; }
         crashed = true;
         document.getElementById("client-disconnect-overlay")
             .style.display = "block";
@@ -126,7 +243,7 @@ function onSocketEvent(event) {
     switch(event.type) {
         case "invalid_message": {
             console.error(`Server reported invalid message: ${event.reason}`);
-            return exitPage();
+            break;
         }
         case "identification": {
             playerId = event.playerId;
@@ -134,6 +251,7 @@ function onSocketEvent(event) {
         }
         case "room_info": {
             roomOwnerId = event.owner;
+            settings = event.settings;
             const playing = event.state === "playing";
             if(!playing && roomIsPlaying) {
                 showWaiting();
@@ -149,6 +267,17 @@ function onSocketEvent(event) {
             crashed = true;
             document.getElementById("room-crashed-overlay")
                 .style.display = "block";
+            break;
+        }
+        case "chat_message": {
+            const chatLog = document.getElementById("chat-message-list");
+            chatLog.innerText += `${event.senderName}: ${event.contents}`;
+            chatLog.appendChild(document.createElement("br"));
+            chatLog.scrollTop = chatLog.scrollHeight;
+            const chatLogNodes = chatLog.childNodes;
+            while(chatLogNodes.length > 256 * 2) {
+                chatLog.removeChild(chatLogNodes[0]);
+            }
             break;
         }
     }

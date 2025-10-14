@@ -61,6 +61,11 @@ button {
     padding: 1rem;
     border-radius: 0.4rem;
 }
+button > .button-icon-hover,
+button:hover > .button-icon {
+    display: none;
+}
+button:hover > .button-icon-hover { display: inline-block; }
 input {
     background: var(--bg-front);
     color: var(--text-main);
@@ -68,7 +73,7 @@ input {
     outline: none;
     font: inherit;
     box-sizing: border-box;
-    padding: 0.5rem;
+    padding: 0.75rem;
     border-radius: 0.25rem;
 }
 button:hover , input:focus {

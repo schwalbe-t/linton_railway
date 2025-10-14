@@ -55,4 +55,66 @@
     margin-left: 0.5rem;
     font-size: 0.8rem;
 }
+.player-info-container > .player-kick-button {
+    float: right;
+    aspect-ratio: 1;
+    padding: 0.25rem;
+    margin: 0;
+    margin-right: 2px;
+}
+.player-kick-button > img { height: 1rem; }
 #copy-invite-link { float: right; }
+
+#settings-container {
+    position: absolute;
+    right: 2rem;
+    top: 50vh;
+    transform: translate(0, -50%);
+    width: 20rem;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    background: var(--bg-mid);
+}
+.setting-container {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: row;
+}
+.setting-container > div {
+    position: relative;
+    flex-grow: 1;
+    margin-right: 0.25rem;
+}
+.setting-container > div > div {
+    position: absolute;
+    top: 50%;
+    transform: translate(0, -50%);
+}
+.setting-container > button {
+    margin: 0;
+    min-width: 6rem;
+    color: var(--text-main) !important;
+}
+.setting-container > .setting-positive {
+    color: var(--green) !important;
+}
+.setting-container > .setting-negative {
+    color: var(--red) !important;
+}
+
+#chat-container {
+    position: absolute;
+    left: 2rem;
+    bottom: 2rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: var(--bg-mid);
+}
+#chat-container > input {
+    width: 20rem;
+}
+#chat-message-list {
+    width: 100%;
+    height: 10rem;
+    overflow-y: auto;
+}

@@ -19,6 +19,29 @@ window.addEventListener('popstate', () => {
     location.reload();
 });
 
+const handleRoomFindResponse = request => request
+    .then(r => {
+        if(r.ok) { return r.json(); }
+        const roomErr = document.getElementById("room-create-error");
+        if(roomErr.innerText.length !== 0) { return null; }
+        roomErr.innerText = getLocalized(
+            r.status === 429? "roomCreationCooldown" : "roomCreationFailed"
+        );
+        setTimeout(() => {
+            roomErr.innerText = "";
+        }, 5000);
+        return null;
+    })
+    .then(j => {
+        const hasRoomId = j
+            && typeof j === "object"
+            && typeof j.roomId === "string";
+        if(!hasRoomId) { return; }
+        history.pushState(null, "", `/join?id=${j.roomId}`);
+        prepareJoin(j.roomId);
+    })
+    .catch(console.error);
+
 function createRoom() {
     const roomCreateRequest = {
         method: "POST",
@@ -26,28 +49,11 @@ function createRoom() {
             "Content-Type": "application/json"
         }
     };
-    fetch("/api/rooms/create", roomCreateRequest)
-        .then(r => {
-            if(r.ok) { return r.json(); }
-            const roomErr = document.getElementById("room-create-error");
-            if(roomErr.innerText.length !== 0) { return null; }
-            roomErr.innerText = getLocalized(
-                r.status === 429? "roomCreationCooldown" : "roomCreationFailed"
-            );
-            setTimeout(() => {
-                roomErr.innerText = "";
-            }, 5000);
-            return null;
-        })
-        .then(j => {
-            const hasRoomId = j
-                && typeof j === "object"
-                && typeof j.roomId === "string";
-            if(!hasRoomId) { return; }
-            history.pushState(null, "", `/join?id=${j.roomId}`);
-            prepareJoin(j.roomId);
-        })
-        .catch(console.error);
+    handleRoomFindResponse(fetch("/api/rooms/create", roomCreateRequest));
+}
+
+function joinPublicRoom() {
+    handleRoomFindResponse(fetch("/api/rooms/findPublic"));
 }
 
 function prepareJoin(roomId) {

@@ -42,7 +42,6 @@ inline fun socketSendSync(socket: WebSocketSession, message: OutEvent) {
 data class RoomSettings(
     val roomIsPublic: Boolean,
     val trainNameLanguage: RoomSettings.TrainNameLanguage,
-    val trainNameReliability: RoomSettings.TrainNameReliability,
     val trainNameChanges: Boolean,
     val variedTrainStyles: Boolean,
     val trainLength: RoomSettings.TrainLength
@@ -55,13 +54,6 @@ data class RoomSettings(
     }
 
     @Serializable
-    enum class TrainNameReliability {
-        @SerialName("low") LOW,
-        @SerialName("neutral") NEUTRAL,
-        @SerialName("high") HIGH
-    }
-
-    @Serializable
     enum class TrainLength {
         @SerialName("short") SHORT,
         @SerialName("medium") MEDIUM,
@@ -69,10 +61,9 @@ data class RoomSettings(
     }
 
     companion object {
-        fun default(): RoomSettings = RoomSettings(
-            roomIsPublic = false,
+        fun default(isPublic: Boolean = false): RoomSettings = RoomSettings(
+            roomIsPublic = isPublic,
             trainNameLanguage = TrainNameLanguage.ENGLISH,
-            trainNameReliability = TrainNameReliability.NEUTRAL,
             trainNameChanges = true,
             variedTrainStyles = true,
             trainLength = TrainLength.MEDIUM
@@ -80,12 +71,17 @@ data class RoomSettings(
     }
 }
 
-class Room(val id: String) {
+class Room(
+    val id: String, 
+    var settings: RoomSettings
+) {
 
     companion object {
         // minimum delay, may take longer depending on when the next 
         // registry clean up cycle hits
         val CLOSE_DELAY_MS: Long = 300_000 // 5 minutes
+        // starts rejecting join requests past this number of connections
+        val MAX_NUM_CONNECTIONS: Int = 32
     }
 
     data class Connection(val name: String, val socket: WebSocketSession)
@@ -142,6 +138,9 @@ class Room(val id: String) {
                 }
                 this.game.update()
                 if(this.game.hasEnded()) {
+                    synchronized(room) {
+                        room.lastGameTime = System.currentTimeMillis()
+                    }
                     room.changeState(Room.State.Waiting())
                     return
                 }
@@ -152,7 +151,7 @@ class Room(val id: String) {
     var state: State = State.Waiting()
     val connected = ConcurrentHashMap<String, Room.Connection>()
     var owner: String? = null
-    var settings: RoomSettings = RoomSettings.default()
+    var lastGameTime: Long = System.currentTimeMillis()
 
     fun update() {
         synchronized(this) {
@@ -262,7 +261,7 @@ sealed class OutEvent {
     data class RoomInfo(
         val players: List<EventPlayerInfo>, 
         val owner: String,
-        val sett: RoomSettings,
+        val settings: RoomSettings,
         val state: String
     ): OutEvent()
 
@@ -380,6 +379,13 @@ class RoomWebSocketHandler: TextWebSocketHandler() {
                 session.close()
                 return
             }
+            if(room.connected.size >= Room.MAX_NUM_CONNECTIONS) {
+                socketSendSync(session, OutEvent.InvalidMessage(
+                    "The requested room is full"
+                ))
+                session.close()
+                return
+            }
             room.connect(playerId, event.name, session)
             this.playerToRoomId[playerId] = event.roomId
             return
@@ -432,8 +438,17 @@ class RoomWebSocketHandler: TextWebSocketHandler() {
                     ))
                     return
                 }
+                val oldSettings: RoomSettings
                 synchronized(room) {
+                    oldSettings = room.settings
                     room.settings = event.newSettings
+                }
+                if(oldSettings.roomIsPublic != event.newSettings.roomIsPublic) {
+                    if(event.newSettings.roomIsPublic) {
+                        roomRegistry.publicRooms[roomId] = room;
+                    } else {
+                        roomRegistry.publicRooms.remove(roomId);
+                    }
                 }
                 room.broadcastRoomInfo()
             }

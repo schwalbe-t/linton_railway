@@ -141,12 +141,6 @@ const SETTING_PROPERTIES = Object.freeze({
         buttonId: "game-setting-train-name-language",
         buttonClasses: [[], [], []]
     },
-    trainNameReliability: {
-        values: ["low", "neutral", "high"],
-        valuesLocalized: "gameSettingTrainNameReliabilityValues",
-        buttonId: "game-setting-train-name-reliability",
-        buttonClasses: [["setting-negative"], [], ["setting-positive"]]
-    },
     trainNameChanges: {
         values: [false, true],
         valuesLocalized: "gameSettingTrainNameChangesValues",
@@ -170,7 +164,6 @@ const SETTING_PROPERTIES = Object.freeze({
 let settings = {
     roomIsPublic: false,
     trainNameLanguage: "en",
-    trainNameReliability: "neutral",
     trainNameChanges: true,
     variedTrainStyles: true,
     trainLength: "medium"

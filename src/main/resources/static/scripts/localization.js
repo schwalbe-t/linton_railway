@@ -164,16 +164,6 @@ const LOCALIZATION = Object.freeze({
         "de": ["🇬🇧", "🇩🇪", "🇧🇬"],
         "bg": ["🇬🇧", "🇩🇪", "🇧🇬"]
     },
-    "gameSettingTrainNameReliability": {
-        "en": "Reliability of Train Names",
-        "de": "Zuverlässigkeit von Zugnamen",
-        "bg": null
-    },
-    "gameSettingTrainNameReliabilityValues": {
-        "en": ["Low", "Neutral", "High"],
-        "de": ["Niedrig", "Neutral", "Hoch"],
-        "bg": [null, null, null]
-    },
     "gameSettingTrainNameChanges": {
         "en": "Train Name Changes Allowed",
         "de": "Änderungen an Zugnamen Erlaubt",

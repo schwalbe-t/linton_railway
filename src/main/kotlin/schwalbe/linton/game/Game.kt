@@ -1,12 +1,17 @@
 
 package schwalbe.linton.game
 
+import kotlin.random.Random
+
 data class Player(val name: String, val id: String)
 
 class Game(players: Map<String, String>) {
 
     val playing: MutableMap<String, Player> = mutableMapOf()
     var gameHasEnded: Boolean = false
+
+    val seed: Int = Random.nextInt()
+    val terrain = Terrain(this.seed, players.size)
 
     init {
         for((id, name) in players) {

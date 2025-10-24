@@ -1,38 +1,97 @@
 
-// import * as spline from "./spline.js";
-import { Vector4 } from "../libs/math.gl.js";
-import { 
-    initGraphics, Shader, Geometry, Texture, TextureFormat, TextureFilter,
-    defaultFramebuffer
+import { Matrix4, Vector3 } from "../libs/math.gl.js";
+import {
+    initGraphics, updateGraphics,
+    Shader, Model, defaultFramebuffer, 
+    TextureFormat,
+    TextureFilter
 } from "./graphics.js";
+import { Renderer } from "./renderer.js";
 import * as resources from "./resources.js";
+import * as gameloop from "./gameloop.js";
 
 const RESOURCES = resources.load({
-    testShader: Shader.loadGlsl(
-        "/res/shaders/test_vert.glsl", "/res/shaders/test_frag.glsl"
+    rendererShadowShader: Renderer.loadShadowShader(),
+    shader: Shader.loadGlsl(
+        "/res/shaders/geometry.vert.glsl", "/res/shaders/geometry.frag.glsl"
     ),
-    testTexture: Texture.loadImage(
-        "/res/test.png", TextureFormat.RGBA8, TextureFilter.LINEAR
-    )
+    carriageShader: Shader.loadGlsl(
+        "/res/shaders/geometry.vert.glsl", "/res/shaders/carriage.frag.glsl"
+    ),
+    carriage: Model.loadMeshes(Renderer.OBJ_LAYOUT, [
+        { tex: "/res/models/carriage.png", obj: "/res/models/carriage.obj" }
+    ]),
+    locoDiesel: Model.loadMeshes(Renderer.OBJ_LAYOUT, [
+        { tex: "/res/models/loco_diesel.png", obj: "/res/models/loco_diesel.obj" }
+    ]),
+    locoSteam: Model.loadMeshes(Renderer.OBJ_LAYOUT, [
+        { tex: "/res/models/loco_steam.png", obj: "/res/models/loco_steam.obj" }
+    ]),
+    tree: Model.loadMeshes(Renderer.OBJ_LAYOUT, [
+        { 
+            tex: "/res/models/tree.png", obj: "/res/models/tree.obj",
+            texFormat: TextureFormat.RGBA8, texFilter: TextureFilter.LINEAR
+        }
+    ])
 });
 
 window.addEventListener("load", () => {
-    initGraphics(document.getElementById("test-canvas"));
-    const testGeometry = new Geometry([
-         0.0, +0.5,   0.5, 1.0,
-        -0.5, -0.5,   0.0, 0.0,
-        +0.5, -0.5,   1.0, 0.0
-    ], [
-        0, 1, 2
-    ], [2, 2]);
-    const frame = () => {
-        defaultFramebuffer.clearColor(new Vector4(1, 1, 1, 1));
-        defaultFramebuffer.clearDepth(1);
-        testGeometry.render(RESOURCES.testShader, defaultFramebuffer);
-        window.requestAnimationFrame(frame);
-    };
+    initGraphics(document.getElementById("game-canvas"));
     RESOURCES.onLoad(() => {
-        RESOURCES.testShader.setUniform("uTexture", RESOURCES.testTexture);
-        window.requestAnimationFrame(frame);
+        init();
+        gameloop.start();
+    });
+});
+
+let renderer = null;
+
+function init() {
+    renderer = new Renderer();
+    renderer.camera.eye.set(-6, 4.5, -3);
+}
+
+gameloop.onFrame(deltaTime => {
+    updateGraphics();
+    renderer.update(defaultFramebuffer);
+    renderer.setUniforms(RESOURCES.shader);
+    renderer.setUniforms(RESOURCES.carriageShader);
+    renderer.shadowMapped(defaultFramebuffer, () => {
+        RESOURCES.carriageShader.setUniform(
+            "uCarriageColor", new Vector3(204, 120, 91).scale(1/255)
+        );
+        renderer.render(
+            RESOURCES.carriage, RESOURCES.carriageShader,
+            [
+                new Matrix4(),
+                new Matrix4().translate([ 1.15, 0, 0 ]),
+                new Matrix4().translate([ 2.30, 0, 0 ])
+            ]
+        )
+        RESOURCES.carriageShader.setUniform(
+            "uCarriageColor", new Vector3(170, 116, 158).scale(1/255)
+        );
+        renderer.render(
+            RESOURCES.carriage, RESOURCES.carriageShader,
+            [
+                new Matrix4().translate([ 0.00, 0, 0.5 ]),
+                new Matrix4().translate([ 1.15, 0, 0.5 ]),
+                new Matrix4().translate([ 2.30, 0, 0.5 ])
+            ]
+        )
+        renderer.render(
+            RESOURCES.locoSteam, RESOURCES.shader,
+            [ new Matrix4().translate([ -1.15, 0, 0 ]) ]
+        )
+        renderer.render(
+            RESOURCES.locoDiesel, RESOURCES.shader,
+            [ new Matrix4().translate([ -1.15, 0, 0.5 ]) ]
+        )
+        renderer.render(
+            RESOURCES.tree, RESOURCES.shader,
+            [
+                new Matrix4().translate([ 0.25, 0, -0.5 ]),
+                new Matrix4().translate([ 2.25, 0, -0.5 ])
+            ]
+        )
     });
 });

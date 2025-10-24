@@ -253,6 +253,7 @@ function onSocketEvent(event) {
                 showPlaying();
             }
             roomIsPlaying = playing;
+            window.gameRunning = playing;
             updateWaiting(event.players);
             break;
         }

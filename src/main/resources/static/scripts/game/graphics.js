@@ -22,8 +22,26 @@ export const GRAPHICS_INIT = new Promise(r => onGraphicsInit(r));
 export function initGraphics(canvasElement) {
     canvas = canvasElement;
     gl = canvas.getContext("webgl2");
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     initHandlers.forEach(f => f());
     initHandlers = [];
+}
+
+export function updateGraphics() {
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    if(canvas.width !== width || canvas.height !== height) {
+        // size of canvas has changed
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+        if(AbstractFramebuffer.bound === defaultFramebuffer) {
+            // Re-bind the default buffer if it's the current buffer
+            // since its size has changed and we therefore need another call
+            // to 'gl.viewport'
+            AbstractFramebuffer.bound = null;
+        }
+    }
 }
 
 
@@ -33,15 +51,48 @@ const readText = filePath => fetch(filePath)
 
 
 
+const SHADER_INCL = "#include \"";
+
+const SHADER_PRE = "#version 300 es\n"
+    + "precision highp float;\n";
+
+function expandShaderIncludes(source, path) {
+    const dir = path.split("/")
+        .filter(f => f.length > 0)
+        .slice(0, -1)
+        .join("/");
+    return source.split("\n").map(line => {
+        if(!line.startsWith(SHADER_INCL)) {
+            return line;
+        }
+        const inclPathEnd = line.indexOf("\"", SHADER_INCL.length);
+        const inclPath = line.substring(SHADER_INCL.length, inclPathEnd);
+        const absInclPath = "/" + dir + "/" + inclPath;
+        return fetch(absInclPath)
+            .then(res => res.text())
+            .then(src => expandShaderIncludes(src, absInclPath));
+    });
+}
+
+async function awaitShaderIncludes(lines) {
+    for(let lineI = 0; lineI < lines.length; lineI += 1) {
+        const line = lines[lineI];
+        if(typeof line === "string") { continue; }
+        const repl = await line;
+        lines[lineI] = await awaitShaderIncludes(repl);
+    }
+    return lines.join("\n");
+}
+
+const preprocessShader = async (src, path) => SHADER_PRE
+    + await awaitShaderIncludes(expandShaderIncludes(src, path));
+
 function compileShader(src, shaderType) {
     const shader = gl.createShader(shaderType);
     gl.shaderSource(shader, src);
     gl.compileShader(shader);
     return shader;
 }
-
-const SHADER_PRE = "#version 300 es\n"
-    + "precision highp float;\n";
 
 export class Shader {
 
@@ -51,31 +102,42 @@ export class Shader {
         await GRAPHICS_INIT;
         const vertexSrc = await vertexSrcReq;
         const fragmentSrc = await fragmentSrcReq;
-        return new Shader(vertexSrc, fragmentSrc, vertexPath, fragmentPath);
+        const vertExpReq = preprocessShader(vertexSrc, vertexPath);
+        const fragExpReq = preprocessShader(fragmentSrc, fragmentPath);
+        const vertExpSrc = await vertExpReq;
+        const fragExpSrc = await fragExpReq;
+        return new Shader(vertExpSrc, fragExpSrc, vertexPath, fragmentPath);
     }
 
     constructor(
         vertexSrc, fragmentSrc, 
-        vertexPath = "<unknown>", fragmentPath = "<unknown>"
-    ) {
-        const vertExpSrc = SHADER_PRE + vertexSrc;
-        const fragExpSrc = SHADER_PRE + fragmentSrc;
-        const vertexShader = compileShader(vertExpSrc, gl.VERTEX_SHADER);
-        const fragmentShader = compileShader(fragExpSrc, gl.FRAGMENT_SHADER);
+        vertexPath = "unknown.vert.glsl", fragmentPath = "unknown.frag.glsl"
+    ) { 
+        const vertexShader = compileShader(vertexSrc, gl.VERTEX_SHADER);
+        const fragmentShader = compileShader(fragmentSrc, gl.FRAGMENT_SHADER);
         this.program = gl.createProgram();
         gl.attachShader(this.program, vertexShader);
         gl.attachShader(this.program, fragmentShader);
         gl.linkProgram(this.program);
         const linked = gl.getProgramParameter(this.program, gl.LINK_STATUS);
         if(!linked) {
-            throw new Error("Shader compilation failed:\n"
-                + `=== Vertex Shader '${vertexPath}' ===\n`
-                + gl.getShaderInfoLog(vertexShader) + "\n"
-                + `=== Fragment Shader '${fragmentPath} ===\n'`
-                + gl.getShaderInfoLog(fragmentShader) + "\n"
-                + `=== Linking ===\n`
+            console.error("Shader compilation failed!");
+            console.error(`=== Linking ===\n`
                 + gl.getProgramInfoLog(this.program)
             );
+            console.error(`=== Vertex Shader '${vertexPath}' ===\n`
+                + gl.getShaderInfoLog(vertexShader)
+            );
+            console.error(`=== Fragment Shader '${fragmentPath} ===\n'`
+                + gl.getShaderInfoLog(fragmentShader)
+            );
+            console.error(`=== Source for '${vertexPath}' ===\n`
+                + vertexSrc
+            );
+            console.error(`=== Source for '${fragmentPath}' ===\n`
+                + fragmentSrc
+            );
+            throw new Error("Shader compilation failed");
         }
         gl.deleteShader(vertexShader);
         gl.deleteShader(fragmentShader);
@@ -206,19 +268,73 @@ export const DepthTesting = Object.freeze({
 
 
 
+export const ObjProperty = Object.freeze({
+    Position: { size: 3, objIdxPos: 0, buffer: (p, t, n) => p },
+    TexCoord: { size: 2, objIdxPos: 1, buffer: (p, t, n) => t },
+    Normal:   { size: 3, objIdxPos: 2, buffer: (p, t, n) => n }
+});
+
 export class Geometry {
 
-    static async loadObj(path, layout) {
+    // very basic Obj parser:
+    // - no support for materials
+    // - no support for multiple meshes
+    static async loadObj(layout, path) {
         const objTextReq = readText(path);
         await GRAPHICS_INIT;
         const objText = await objTextReq;
-        // TODO! return new Geometry
-        throw "not yet implemented";
+        const positions = [];
+        const texCoords = [];
+        const normals = [];
+        let vertexCount = 0;
+        const vertData = [];
+        const elemData = [];
+        for(const line of objText.split("\n")) {
+            const elems = line.split("#")[0].split(" ");
+            const parseVertex = elem => {
+                const indices = elem.split("/").map(Number);
+                for(const property of layout) {
+                    const index = indices[property.objIdxPos] - 1;
+                    const buf = property.buffer(positions, texCoords, normals);
+                    vertData.push(...buf[index]);
+                }
+                let vertIdx = vertexCount;
+                vertexCount += 1;
+                return vertIdx;
+            };
+            switch(elems[0]) {
+                case "v":
+                    positions.push(elems.slice(1, 4).map(Number));
+                    break;
+                case "vt":
+                    texCoords.push(elems.slice(1, 3).map(Number));
+                    break;
+                case "vn":
+                    normals.push(elems.slice(1, 4).map(Number));
+                    break;
+                case "f":
+                    const indices = elems.slice(1).map(parseVertex);
+                    if(indices.length === 3) {
+                        elemData.push(indices[0], indices[1], indices[2]);
+                        break;
+                    }
+                    if(indices.length === 4) {
+                        elemData.push(indices[0], indices[1], indices[2]);
+                        elemData.push(indices[0], indices[2], indices[3]);
+                        break;
+                    }
+                    for(let i = 1; i < indices.length - 1; i += 1) {
+                        elemData.push(indices[0], indices[i], indices[i + 1]);
+                    }
+                    break;
+            }
+        }
+        return new Geometry(layout.map(p => p.size), vertData, elemData);
     }
     
     static bound = null;
 
-    constructor(vertData, elemData, layout) {
+    constructor(layout, vertData, elemData) {
         this.vao = gl.createVertexArray();
         gl.bindVertexArray(this.vao);
         this.vbo = gl.createBuffer();
@@ -305,13 +421,13 @@ export const TextureFormat = Object.freeze({
 
 export const TextureFilter = Object.freeze({
     LINEAR:  { value: () => gl.LINEAR },
-    CLOSEST: { value: () => gl.CLOSEST }
+    NEAREST: { value: () => gl.NEAREST }
 });
 
 export class Texture {
 
     static async loadImage(
-        path, format = TextureFormat.RGB8, filter = TextureFilter.CLOSEST
+        path, format = TextureFormat.RGB8, filter = TextureFilter.NEAREST
     ) {
         const img = new Image();
         const imgLoaded = new Promise(r => { img.onload = r; });
@@ -331,7 +447,7 @@ export class Texture {
         return new Texture(texture, img.width, img.height);
     }
 
-    static withSize(width, height, format, filter = TextureFilter.CLOSEST) {
+    static withSize(width, height, format, filter = TextureFilter.NEAREST) {
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texImage2D(
@@ -351,6 +467,62 @@ export class Texture {
         this.height = height;
     }
 
+    delete() {
+        if(this.texture !== null) { gl.deleteTexture(this.texture); }
+        this.texture = null;
+    }
+
+}
+
+
+
+export class Model {
+
+    static async loadMeshes(layout, meshes) {
+        const meshPromises = meshes.map(async mesh => {
+            const geometryReq = Geometry.loadObj(
+                layout, mesh.obj
+            )
+            const textureReq = Texture.loadImage(
+                mesh.tex, mesh.texFormat, mesh.texFilter 
+            );
+            return {
+                geometry: await geometryReq,
+                texture: await textureReq
+            };
+        });
+        const loadedMeshes = (await Promise.allSettled(meshPromises))
+            .map(p => p.value);
+        return new Model(loadedMeshes);
+    }
+
+    constructor(meshes) {
+        this.meshes = meshes;
+    }
+
+    render(
+        shader, framebuffer,
+        textureUniformName = undefined,
+        instanceCount = 1, depthTesting = DepthTesting.ENABLED,
+    ) {
+        for(const mesh of this.meshes) {
+            if(textureUniformName !== undefined) {
+                shader.setUniform(textureUniformName, mesh.texture);
+            }
+            mesh.geometry.render(
+                shader, framebuffer, instanceCount, depthTesting
+            );
+        }
+    }
+
+    delete() {
+        this.meshes.forEach(mesh => {
+            mesh.geometry.delete();
+            mesh.texture.delete();
+        });
+        this.meshes = [];
+    }
+
 }
 
 
@@ -359,8 +531,8 @@ export class AbstractFramebuffer {
 
     static bound = null;
 
-    constructor(bindImpl) {
-        this.bindImpl = bindImpl;
+    bindImpl() {
+        throw new Error("'AbstractFramebuffer.bindImpl' not implemented!");
     }
 
     bind() {
@@ -371,11 +543,13 @@ export class AbstractFramebuffer {
     }
 
     clearColor(color) {
+        this.bind();
         gl.clearColor(color.x, color.y, color.z, color.w);
         gl.clear(gl.COLOR_BUFFER_BIT);
     }
 
     clearDepth(depth) {
+        this.bind();
         gl.clearDepth(depth);
         gl.clear(gl.DEPTH_BUFFER_BIT);
     }
@@ -384,10 +558,8 @@ export class AbstractFramebuffer {
 
 class DefaultFramebuffer extends AbstractFramebuffer {
 
-    constructor() {
-        super(() => {
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        });
+    bindImpl() {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 
     get width() { return canvas.width; }
@@ -396,3 +568,79 @@ class DefaultFramebuffer extends AbstractFramebuffer {
 }
 
 export const defaultFramebuffer = new DefaultFramebuffer();
+
+export class Framebuffer extends AbstractFramebuffer {
+
+    constructor() {
+        super();
+        this.fbo = gl.createFramebuffer();
+        this.color = null;
+        this.depth = null;
+    }
+
+    assertMatchingSize() {
+        if(this.color === null || this.depth === null) { return; }
+        const matchingSize = this.color.width === this.depth.width
+            && this.color.height === this.depth.height;
+        if(matchingSize) { return; }
+        throw new Error(
+            `Attached color is ${this.color.width}x${this.color.height}, `
+                + `but depth is ${this.depth.width}x${this.depth.height}`
+        );
+    }
+
+    setColor(texture = null) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+        gl.framebufferTexture2D(
+            gl.FRAMEBUFFER,
+            gl.COLOR_ATTACHMENT0,
+            gl.TEXTURE_2D,
+            texture !== null? texture.texture : null,
+            0
+        );
+        this.color = texture;
+        this.assertMatchingSize();
+        AbstractFramebuffer.bound = null;
+    }
+
+    setDepth(texture = null) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+        gl.framebufferTexture2D(
+            gl.FRAMEBUFFER,
+            gl.DEPTH_ATTACHMENT,
+            gl.TEXTURE_2D,
+            texture !== null? texture.texture : null,
+            0
+        );
+        this.depth = texture;
+        this.assertMatchingSize();
+        AbstractFramebuffer.bound = null;
+    }
+
+    bindImpl() {
+        if(this.color === null && this.depth === null) {
+            throw new Error("Framebuffer is empty");
+        }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    }
+
+    get width() {
+        return this.color !== null? this.color.width
+            : this.depth !== null? this.depth.width
+            : 0;
+    }
+
+    get height() {
+        return this.color !== null? this.color.height
+            : this.depth !== null? this.depth.height
+            : 0;
+    }
+
+    delete() {
+        if(this.fbo !== null) { gl.deleteFramebuffer(this.fbo); }
+        this.fbo = null;
+        this.color = null;
+        this.depth = null;
+    }
+
+}

@@ -1,5 +1,4 @@
 
-import { Matrix4, Vector3 } from "../libs/math.gl.js";
 import {
     initGraphics, updateGraphics,
     Shader, Model, defaultFramebuffer, 
@@ -9,9 +8,12 @@ import {
 import { Renderer } from "./renderer.js";
 import * as resources from "./resources.js";
 import * as gameloop from "./gameloop.js";
+import { Terrain } from "./terrain.js";
 
 const RESOURCES = resources.load({
     rendererShadowShader: Renderer.loadShadowShader(),
+    terrainResources: Terrain.loadResources(),
+
     shader: Shader.loadGlsl(
         "/res/shaders/geometry.vert.glsl", "/res/shaders/geometry.frag.glsl"
     ),
@@ -44,10 +46,17 @@ window.addEventListener("load", () => {
 });
 
 let renderer = null;
+let terrain = null;
 
 function init() {
     renderer = new Renderer();
-    renderer.camera.eye.set(-6, 4.5, -3);
+    renderer.camera.eye.set(500, 200, 500+150);
+    renderer.camera.center.set(500, 0, 500);
+    renderer.defaultShader = RESOURCES.shader;
+    terrain = new Terrain({
+        sizeChunks: 10,
+        seed: Math.floor(Math.random() * 65536)
+    });
 }
 
 gameloop.onFrame(deltaTime => {
@@ -56,42 +65,6 @@ gameloop.onFrame(deltaTime => {
     renderer.setUniforms(RESOURCES.shader);
     renderer.setUniforms(RESOURCES.carriageShader);
     renderer.shadowMapped(defaultFramebuffer, () => {
-        RESOURCES.carriageShader.setUniform(
-            "uCarriageColor", new Vector3(204, 120, 91).scale(1/255)
-        );
-        renderer.render(
-            RESOURCES.carriage, RESOURCES.carriageShader,
-            [
-                new Matrix4(),
-                new Matrix4().translate([ 1.15, 0, 0 ]),
-                new Matrix4().translate([ 2.30, 0, 0 ])
-            ]
-        )
-        RESOURCES.carriageShader.setUniform(
-            "uCarriageColor", new Vector3(170, 116, 158).scale(1/255)
-        );
-        renderer.render(
-            RESOURCES.carriage, RESOURCES.carriageShader,
-            [
-                new Matrix4().translate([ 0.00, 0, 0.5 ]),
-                new Matrix4().translate([ 1.15, 0, 0.5 ]),
-                new Matrix4().translate([ 2.30, 0, 0.5 ])
-            ]
-        )
-        renderer.render(
-            RESOURCES.locoSteam, RESOURCES.shader,
-            [ new Matrix4().translate([ -1.15, 0, 0 ]) ]
-        )
-        renderer.render(
-            RESOURCES.locoDiesel, RESOURCES.shader,
-            [ new Matrix4().translate([ -1.15, 0, 0.5 ]) ]
-        )
-        renderer.render(
-            RESOURCES.tree, RESOURCES.shader,
-            [
-                new Matrix4().translate([ 0.25, 0, -0.5 ]),
-                new Matrix4().translate([ 2.25, 0, -0.5 ])
-            ]
-        )
+        terrain.render(renderer);
     });
 });

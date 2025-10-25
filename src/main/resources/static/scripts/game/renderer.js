@@ -11,20 +11,21 @@ export class Renderer {
         ObjProperty.Normal,
         ObjProperty.TexCoord 
     ];
+    static GEOMETRY_LAYOUT = [ 3, 3, 2 ];
 
-    static SUN_OFFSET = new Vector3(50, 50, -50);
+    static SUN_OFFSET = new Vector3(1.134, 1, -0.85).normalize().scale(200);
     static SUN_ORTHO_PROJ = {
-        left: -50, right: 50,
-        bottom: -50, top: 50,
+        left: -200, right: 200,
+        bottom: -200, top: 200,
         near: 1, far: 300
     };
     static SHADOW_MAP_RES = 4096;
-    static DEPTH_BIAS = 0.001;
-    static NORMAL_OFFSET = 0;
+    static DEPTH_BIAS = 0.05;
+    static NORMAL_OFFSET = 0.1;
     static FOV_Y = 60;
     static NEAR_PLANE = 1;
-    static FAR_PLANE = 300;
-    static CLEAR_COLOR = new Vector4(134, 160, 99, 255).scale(1/255);
+    static FAR_PLANE = 1000;
+    static CLEAR_COLOR = new Vector4(209, 193, 158, 255).scale(1/255);
     
     static MAX_INSTANCE_COUNT = 64;
     static VIEW_PROJ_UNIFORM = "uViewProj";
@@ -38,11 +39,9 @@ export class Renderer {
 
     static SHADOW_SHADER = null;
     static async loadShadowShader() {
-        const shader = await Shader.loadGlsl(
+        Renderer.SHADOW_SHADER = await Shader.loadGlsl(
             "/res/shaders/geometry.vert.glsl", "/res/shaders/shadows.frag.glsl"
         );
-        Renderer.SHADOW_SHADER = shader;
-        return shader;
     }
 
     constructor() {
@@ -57,6 +56,7 @@ export class Renderer {
             up: new Vector3()
         };
         this.shaderOverride = null;
+        this.defaultShader = null;
         this.target = null;
         this.lightProj = new Matrix4();
         this.viewProj = new Matrix4();
@@ -124,17 +124,34 @@ export class Renderer {
         );
     }
 
-    render(model, shader, instances, depthTesting = DepthTesting.ENABLED) {
-        const actualShader = this.shaderOverride || shader;
+    renderInstanced(instances, shader, f) {
+        const s = this.shaderOverride || shader || this.defaultShader;
+        if(!s) { throw new Error("No shader specified"); }
         const remaining = [...instances];
         while(remaining.length > 0) {
             const batch = remaining.splice(0, Renderer.MAX_INSTANCE_COUNT);
-            actualShader.setUniform(Renderer.MODEL_TRANSFS_UNIFORM, batch);
-            model.render(
-                actualShader, this.target, Renderer.TEXTURE_UNIFORM,
-                batch.length, depthTesting
-            );
+            s.setUniform(Renderer.MODEL_TRANSFS_UNIFORM, batch);
+            f(s, batch.length);
         }
+    }
+
+    renderModel(model, instances, shader, depthTesting = DepthTesting.ENABLED) {
+        this.renderInstanced(instances, shader, (s, batchLen) => {
+            model.render(
+                s, this.target, Renderer.TEXTURE_UNIFORM,
+                batchLen, depthTesting
+            );
+        });
+    }
+
+    renderGeometry(
+        geometry, texture, instances, 
+        shader, depthTesting = DepthTesting.ENABLED
+    ) {
+        this.renderInstanced(instances, shader, (s, batchLen) => {
+            s.setUniform(Renderer.TEXTURE_UNIFORM, texture);
+            geometry.render(s, this.target, batchLen, depthTesting);
+        });
     }
 
 }

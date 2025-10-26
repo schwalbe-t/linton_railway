@@ -47,10 +47,11 @@ window.addEventListener("load", () => {
 
 let renderer = null;
 let terrain = null;
+let angle = 0.0;
 
 function init() {
     renderer = new Renderer();
-    renderer.camera.eye.set(500, 200, 500+150);
+    renderer.camera.eye.set(500, 400, 500+250);
     renderer.camera.center.set(500, 0, 500);
     renderer.defaultShader = RESOURCES.shader;
     terrain = new Terrain({
@@ -60,7 +61,11 @@ function init() {
 }
 
 gameloop.onFrame(deltaTime => {
+    angle += deltaTime;
     updateGraphics();
+    Renderer.SUN_OFFSET
+        .set(Math.cos(angle), 1, Math.sin(angle))
+        .normalize().scale(200);
     renderer.update(defaultFramebuffer);
     renderer.setUniforms(RESOURCES.shader);
     renderer.setUniforms(RESOURCES.carriageShader);

@@ -6,7 +6,7 @@
 #include "shadows.h.glsl"
 
 
-const float DIFFUSE_LIMIT = -0.5;
+const float DIFFUSE_LIMIT = 0.5;
 const vec3 SHADOW_FACTOR = vec3(0.7, 0.85, 1.1);
 
 vec4 shadedColor(vec4 color, vec3 worldPos, vec3 worldNormal) {
@@ -14,10 +14,6 @@ vec4 shadedColor(vec4 color, vec3 worldPos, vec3 worldNormal) {
         || isInShadow(worldPos, worldNormal, false);
     if(!inShadow) { return color; }
     return vec4(color.rgb * SHADOW_FACTOR, color.a);
-    // return vec4(
-    //     color.rgb * (1.0 + min(diffuseIntensityOf(worldNormal), 0.0)),
-    //     color.a
-    // );
 }
 
 

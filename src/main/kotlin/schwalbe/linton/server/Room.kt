@@ -2,6 +2,7 @@
 package schwalbe.linton.server
 
 import schwalbe.linton.game.Game
+import schwalbe.linton.game.Terrain
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.socket.handler.TextWebSocketHandler
 import org.springframework.web.socket.config.annotation.EnableWebSocket
@@ -124,7 +125,10 @@ class Room(
                 if(!allReady) { return }
                 val playing: Map<String, String> = room.connected.entries
                     .associate { (id, connection) -> id to connection.name }
-                room.changeState(Room.State.Playing(Game(playing)))
+                val game = Game(playing)
+                val terrain: Terrain.Serialized = game.terrain.serialize()
+                room.broadcastTerrainInfo(terrain)
+                room.changeState(Room.State.Playing(game))
             }
         }
 
@@ -176,6 +180,18 @@ class Room(
 
     fun connect(playerId: String, name: String, socket: WebSocketSession) {
         this.connected[playerId] = Room.Connection(name, socket)
+        val state: State = synchronized(this) { this.state }
+        when(state) {
+            is State.Playing -> {
+                val message: String = synchronized(state.game) {
+                    Json.encodeToString<OutEvent>(OutEvent.TerrainInfo(
+                        state.game.terrain.serialize()
+                    ))
+                }
+                socketSendSyncRaw(socket, message)
+            }
+            else -> {}
+        }
         this.broadcastRoomInfo()
     }
 
@@ -219,6 +235,14 @@ class Room(
         val event: OutEvent = OutEvent.RoomInfo(
             playerInfo, owner, settings, stateStr
         )
+        val message: String = Json.encodeToString<OutEvent>(event)
+        for(connection in this.connected.values) {
+            socketSendSyncRaw(connection.socket, message)
+        }
+    }
+
+    fun broadcastTerrainInfo(terrain: Terrain.Serialized) {
+        val event: OutEvent = OutEvent.TerrainInfo(terrain)
         val message: String = Json.encodeToString<OutEvent>(event)
         for(connection in this.connected.values) {
             socketSendSyncRaw(connection.socket, message)
@@ -276,6 +300,11 @@ sealed class OutEvent {
     @Serializable
     @SerialName("chat_message")
     class ChatMessage(val senderName: String, val contents: String): OutEvent()
+
+    // used to tell client(s) about world terrain information
+    @Serializable
+    @SerialName("terrain_info")
+    class TerrainInfo(val terrain: Terrain.Serialized): OutEvent()
 }
 
 @Serializable

@@ -1,59 +1,92 @@
 
 import { Vector3 } from "../libs/math.gl.js";
 
-export const catmullRom = {
+export const quadspline = Object.freeze({
 
-    pointAt: function(points, offset) {
-        const segment = Math.trunc(offset)
-        if(segment < 0) { return points[0]; }
-        if(segment >= points.length - 1) { return points.at(-1); }
-        // get knot locations
-        // segment starts at p1 and ends at p2
-        // p0 is the knot before p1, p3 the one after p2
-        const p1 = points[segment];
-        const p2 = points[segment + 1];
-        const p0 = points[segment - 1]
-            || p2.clone().subtract(p1).negate().add(p1);
-        const p3 = points[segment + 2]
-            || p1.clone().subtract(p2).negate().add(p2);
-        // get velocity vectors for hermit spline
-        const v1 = p2.clone().subtract(p0).scale(0.5);
-        const v2 = p3.clone().subtract(p1).scale(0.5);
-        // derive bezier control points
-        const c1 = v1.clone().scale(+1/3).add(p1);
-        const c2 = v2.clone().scale(-1/3).add(p2);
-        // cubic bezier
-        const t = offset - segment;
-        const u = 1 - t;
-        return new Vector3()
-            .add(p1.clone().scale(  u*u*u))
-            .add(c1.clone().scale(3*u*u*t))
-            .add(c2.clone().scale(3*u*t*t))
-            .add(p2.clone().scale(  t*t*t));
+    inSegment: function(spline, segmentI, t) {
+        if(segmentI < 0 || spline.segments.length === 0) {
+            return spline.start;
+        }
+        if(segmentI >= spline.segments.length) {
+            return spline.segments.at(-1).to;
+        }
+        const start = segmentI === 0? spline.start 
+            : spline.segments[segmentI - 1].to;
+        const segment = spline.segments[segmentI];
+        // quadratic bezier
+        const u = 1.0 - t;
+        const c = new Vector3()
+        const r = new Vector3()
+        r.add(c.copy(start       ).scale(      u * u));
+        r.add(c.copy(segment.ctrl).scale(2.0 * u * t));
+        r.add(c.copy(segment.to  ).scale(      t * t));
+        return r;
     },
 
-    tessellate: function(points, resolution) {
-        const subSegLen = 1 / resolution;
-        const builtLen = (points.length - 1) * resolution + 1;
-        const built = new Array(builtLen - 1);
-        for(let segment = 0; segment < points.length - 1; segment += 1) {
-            for(let subSeg = 0; subSeg < resolution; subSeg += 1) {
-                const t = subSeg * subSegLen;
-                const p = this.pointAt(points, segment + t);
-                const i = segment * resolution + subSeg;
-                built[i] = p;
+    tessellate: function(spline, numSegPoints) {
+        const segPointDist = 1 / numSegPoints;
+        const builtLen = spline.segments.length * numSegPoints;
+        const builtSegments = new Array(builtLen);
+        for(let segI = 0; segI < spline.segments.length; segI += 1) {
+            for(let subSegI = 1; subSegI <= numSegPoints; subSegI += 1) {
+                const t = subSegI * segPointDist;
+                const p = quadspline.inSegment(spline, segI, t);
+                builtSegments[segI * numSegPoints + subSegI - 1] = p;
             }
         }
-        built.push(points.at(-1));
-        return built;
+        return {
+            start: new Vector3().copy(spline.start),
+            segments: builtSegments
+        };
     }
 
-};
+});
 
-export const linear = {
+export const linspline = Object.freeze({
 
-    pointAt: function(offset) {
-        // TODO!
+    inSegment: function(spline, segmentI, t) {
+        if(segmentI < 0 || spline.segments.length === 0) {
+            return spline.start;
+        }
+        if(segmentI >= spline.segments.length) {
+            return spline.segments.at(-1);
+        }
+        const start = segmentI === 0? spline.start
+            : spline.segments[segmentI - 1];
+        const end = spline.segments[segmentI];
+        return start.lerp(end, t);
+    },
+
+    segmentLength: function(spline, segmentI) {
+        const end = spline.segments[segmentI];
+        const start = segmentI === 0? spline.start
+            : spline.segments[segmentI - 1];
+        return start.distance(end);
+    },
+
+    Point: function() {
+        return { segmentI: 0, dist: 0.0 };
+    },
+
+    advancePoint: function(spline, point, dist) {
+        let remDist = dist + point.dist;
+        point.dist = 0.0;
+        while(point.segmentI < spline.segments.length) {
+            const segLen = linspline.segmentLength(spline, point.segmentI);
+            if(segLen > remDist) {
+                point.dist = remDist
+                return
+            }
+            remDist -= segLen;
+            point.segmentI += 1;
+        }
+        point.segmentI = spline.segments.length - 1;
+        point.dist = linspline.segmentLength(spline, point.segmentI);
+    },
+
+    atPoint: function(spline, point) {
+        const t = point.dist / linspline.segmentLength(spline, point.segmentI);
+        return linspline.inSegment(spline, point.segmentI, t);
     }
 
-};
+});

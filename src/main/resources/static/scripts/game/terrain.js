@@ -29,9 +29,10 @@ class ChunkElevation {
             for(let rTileZ = 0; rTileZ < (chunkSizeTiles + 1); rTileZ += 1) {
                 const tileX = this.originTileX + rTileX;
                 const tileZ = this.originTileZ + rTileZ;
-                const elev = noise.perlin2(tileX / 10, tileZ / 10) * 10
-                    + noise.perlin2(tileX / 3, tileZ / 3)
-                    + noise.perlin2(tileX / 21, tileZ / 21) * 100;
+                const elev 
+                    = noise.perlin2(tileX / 3.14, tileZ / 3.14)
+                    + noise.perlin2(tileX / 12.5, tileZ / 12.5) * 10
+                    + noise.perlin2(tileX / 21, tileZ / 21) * 20;
                 this.elevation[this.indexOfRel(rTileX, rTileZ)] = elev;
             }
         }
@@ -58,10 +59,9 @@ class ChunkElevation {
 
 export class TerrainChunk {
 
-    static ROCK_MIN_DIFF_Y = 5;
+    static ROCK_MIN_DIFF_Y = 3;
 
-    buildTerrainMesh(details) {
-        const elev = new ChunkElevation(this.chunkX, this.chunkZ, details);
+    buildTerrainMesh(details, elev) {
         const vertData = [];
         const elemData = [];
         let nextVertIdx = 0;
@@ -100,7 +100,7 @@ export class TerrainChunk {
                     const matV = isRock? 0.5 : 0.0;
                     const ab = bPos.clone().subtract(aPos);
                     const ac = cPos.clone().subtract(aPos);
-                    const normal = ac.cross(ab).normalize();
+                    const normal = ab.cross(ac).normalize();
                     const a = buildVertex(
                         aPos, normal, aRRTileX, aRRTileZ, matU, matV
                     );
@@ -152,7 +152,8 @@ export class TerrainChunk {
     constructor(chunkX, chunkZ, details) {
         this.chunkX = chunkX;
         this.chunkZ = chunkZ;
-        this.buildTerrainMesh(details);
+        const elev = new ChunkElevation(this.chunkX, this.chunkZ, details);
+        this.buildTerrainMesh(details, elev);
     }
 
     delete() {

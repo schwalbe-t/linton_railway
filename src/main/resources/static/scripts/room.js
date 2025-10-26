@@ -274,5 +274,9 @@ function onSocketEvent(event) {
             }
             break;
         }
+        case "terrain_info": {
+            console.log(event);
+            break;
+        }
     }
 }

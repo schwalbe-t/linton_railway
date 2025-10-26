@@ -17,11 +17,11 @@ export class Renderer {
     static SUN_ORTHO_PROJ = {
         left: -200, right: 200,
         bottom: -200, top: 200,
-        near: 1, far: 300
+        near: 10, far: 500
     };
     static SHADOW_MAP_RES = 4096;
     static DEPTH_BIAS = 0.05;
-    static NORMAL_OFFSET = 0.1;
+    static NORMAL_OFFSET = 0.01;
     static FOV_Y = 60;
     static NEAR_PLANE = 1;
     static FAR_PLANE = 1000;

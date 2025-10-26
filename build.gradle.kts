@@ -23,6 +23,7 @@ dependencies {
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
 	implementation("org.jetbrains.kotlinx:kotlinx-serialization-json")
 	implementation("org.joml:joml:1.10.5")
+	implementation("de.articdive:jnoise-pipeline:4.1.0")
 
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 

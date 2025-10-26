@@ -10,8 +10,7 @@ class Game(players: Map<String, String>) {
     val playing: MutableMap<String, Player> = mutableMapOf()
     var gameHasEnded: Boolean = false
 
-    val seed: Int = Random.nextInt()
-    val terrain = Terrain(this.seed, players.size)
+    val terrain = Terrain(Random.nextInt(65536), players.size)
 
     init {
         for((id, name) in players) {

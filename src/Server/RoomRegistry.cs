@@ -6,10 +6,10 @@ namespace Linton.Server;
 public class RoomRegistry
 {
 
-    static readonly long CREATION_COOLDOWN_MS = 3 * 60_000;
+    public static readonly long CREATION_COOLDOWN_MS = 3 * 60_000;
     // don't auto-add players to public room if the player count is equal to
     // this number
-    static readonly int MAX_PUBLIC_PLAYER_C = 5;
+    public static readonly int MAX_PUBLIC_PLAYER_C = 5;
 
     readonly ConcurrentDictionary<string, Room> _rooms = new();
     readonly ConcurrentDictionary<string, Room> _publicRooms = new();

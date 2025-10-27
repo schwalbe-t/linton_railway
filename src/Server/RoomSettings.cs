@@ -22,9 +22,9 @@ public enum TrainLength
 
 public class RoomSettings
 {
-    public required bool roomIsPublic;
-    public TrainNameLanguage trainNameLanguage = TrainNameLanguage.English;
-    public bool trainNameChanges = true;
-    public bool variedTrainStyles = true;
-    public TrainLength trainLength = TrainLength.Medium;
+    public required bool RoomIsPublic;
+    public TrainNameLanguage TrainNameLanguage = TrainNameLanguage.English;
+    public bool TrainNameChanges = true;
+    public bool VariedTrainStyles = true;
+    public TrainLength TrainLength = TrainLength.Medium;
 }

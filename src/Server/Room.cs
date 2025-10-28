@@ -1,60 +1,10 @@
 
 using System.Collections.Concurrent;
-using Linton.Game;
 
 namespace Linton.Server;
 
-public abstract class RoomState
-{
-    public abstract string TypeString { get; }
-    public virtual void Update(Room room) { }
 
-    public sealed class Dying : RoomState
-    {
-        public override string TypeString { get => "dying"; }
-
-        public readonly long Until = DateTimeOffset.Now.ToUnixTimeMilliseconds()
-            + Room.ClosureDelayMs;
-
-        public override void Update(Room room)
-        {
-
-        }
-    }
-
-    public sealed class Waiting : RoomState
-    {
-        public override string TypeString { get => "waiting"; }
-
-        readonly ConcurrentDictionary<string, bool> _ready = new();
-
-        public override void Update(Room room)
-        {
-
-        }
-    }
-
-    public sealed class Playing : RoomState
-    {
-        public override string TypeString { get => "playing"; }
-
-        public required GameInstance Game;
-
-        public override void Update(Room room)
-        {
-
-        }
-    }
-}
-
-
-public class RoomConnection(string name)
-{
-    public readonly string Name = name;
-}
-
-
-public class Room(string id, RoomSettings settings)
+public class Room(Guid id, RoomSettings settings)
 {
     /// <summary>
     /// The minimum amount of time that needs to pass (in milliseconds) before
@@ -62,23 +12,20 @@ public class Room(string id, RoomSettings settings)
     /// This duration is already included in the 'Until'-property of the 'Dying'
     /// room state.
     /// </summary>
-    public static readonly long ClosureDelayMs = 300_000;
+    public static readonly TimeSpan ClosureDelay = TimeSpan.FromMinutes(5);
     /// <summary>
     /// Room connection requests should be rejected if this amount of clients
     /// is connected to the same room.
     /// </summary>
-    public static readonly int MaxNumConnections = 32;
+    public const int MaxNumConnections = 32;
 
 
-    private readonly Lock _lock = new();
+    readonly Lock _lock = new();
 
-    private RoomState _state;
+    RoomState _state = new RoomState.Dying();
     public RoomState State
     {
-        get
-        {
-            lock (_lock) { return _state; }   
-        }
+        get { lock (_lock) { return _state; } }
         set
         {
             lock (_lock) { _state = value; }
@@ -86,24 +33,18 @@ public class Room(string id, RoomSettings settings)
         }
     }
 
-    readonly ConcurrentDictionary<string, RoomConnection> _connected = new();
-    public IReadOnlyDictionary<string, RoomConnection> Connected
-    {
-        get => _connected;
-    }
+    readonly ConcurrentDictionary<Guid, User> _connected = new();
+    public IReadOnlyDictionary<Guid, User> Connected => _connected;
 
-    private string? _owner = null;
+    Guid? _owner = null;
     /// <summary>
     /// Specifies the owner of the room (or null if the room is empty).
     /// The owner is the one that is allowed to change room settings and
     /// disconnect players.
     /// </summary>
-    public string? Owner
+    public Guid? Owner
     {
-        get
-        {
-            lock (_lock) { return _owner; }
-        }
+        get { lock (_lock) { return _owner; } }
         private set
         {
             lock (_lock) { _owner = value; }
@@ -111,32 +52,21 @@ public class Room(string id, RoomSettings settings)
         }
     }
 
-    private long _lastGameTime = DateTimeOffset.Now.ToUnixTimeMilliseconds();
     /// <summary>
     /// The UNIX time stamp of the last time a game ended (or the point in time
     /// when the room was created).
     /// </summary>
-    public long LastGameTime
-    {
-        get
-        {
-            lock (_lock) { return _lastGameTime; }
-        }
-        private set
-        {
-            lock (_lock) { _lastGameTime = value; }
-        }
-    }
+    public long LastGameTime = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
     /// <summary>
     /// Updates the state of the room.
     /// </summary>
     public void Update()
     {
-        string? prevOwner = Owner;
-        if (prevOwner == null || !_connected.ContainsKey(prevOwner))
+        Guid? prevOwner = Owner;
+        if (prevOwner == null || !_connected.ContainsKey(prevOwner.Value))
         {
-            string? newOwner = _connected.Keys.FirstOrDefault();
+            Guid? newOwner = _connected.Keys.FirstOrDefault();
             if (newOwner != Owner) { Owner = newOwner; }
         }
         State.Update(this);
@@ -149,7 +79,7 @@ public class Room(string id, RoomSettings settings)
     /// </summary>
     /// <param name="playerId">the id of the connecting player</param>
     /// <param name="name">the name of the connecting player</param>
-    public void Connect(string playerId, string name)
+    public void Connect(Guid playerId, string name)
     {
 
     }
@@ -158,7 +88,7 @@ public class Room(string id, RoomSettings settings)
     /// Handles a player disconnecting from the room.
     /// </summary>
     /// <param name="playerId">the id of the disconnected player</param>
-    public void OnDisconnect(string playerId)
+    public void OnDisconnect(Guid playerId)
     {
 
     }
@@ -180,13 +110,22 @@ public class Room(string id, RoomSettings settings)
     {
 
     }
-    
+
     /// <summary>
     /// Broadcasts the room info event to all connected clients.
     /// </summary>
     public void BroadcastRoomInfo()
     {
-        
+
+    }
+    
+    /// <summary>
+    /// Should the room be playing at the time of calling, the terrain info
+    /// of the game instance is broadcasted to all connected clients. 
+    /// </summary>
+    public void BroadcastTerrainInfo()
+    {
+        // TODO!
     }
 
 }

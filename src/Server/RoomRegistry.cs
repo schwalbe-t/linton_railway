@@ -3,41 +3,49 @@ using System.Collections.Concurrent;
 
 namespace Linton.Server;
 
-public sealed class RoomRegistry
-{
 
-    public static readonly RoomRegistry Instance = new();
+/// <summary>
+/// Contains all rooms that exist on a given server.
+/// This class manages room creation, allocation (for public games), deletion
+/// and client room creation timeouts.
+/// </summary>
+public static class RoomRegistry
+{
 
     /// <summary>
     /// Minimum amount of time that needs to pass between consecutive room
     /// creations by the same client IP address.
     /// </summary>
-    public static readonly long CreationCooldownMs = 3 * 60_000;
+    public static readonly TimeSpan CreationCooldown = TimeSpan.FromMinutes(3);
+    
     /// <summary>
     /// The target number of players in a public room for the public room
     /// allocation method. If two threads happen to allocate a client into the
     /// same room at the same time they are allowed to exceed this limit.
     /// </summary>
-    public static readonly int MaxNumPublicPlayers = 5;
+    public const int MaxNumPublicPlayers = 5;
 
-    private RoomRegistry() {}
 
-    readonly ConcurrentDictionary<string, Room> _rooms = new();
-    readonly ConcurrentDictionary<string, Room> _publicRooms = new();
-    readonly ConcurrentDictionary<string, long> _clientCooldowns = new();
+    static readonly ConcurrentDictionary<Guid, Room> _rooms = new();
+    public static IReadOnlyDictionary<Guid, Room> Rooms => _rooms;
+
+    static readonly ConcurrentDictionary<Guid, Room> _publicRooms = new();
+
+    static readonly ConcurrentDictionary<string, DateTime> _clientCooldowns
+        = new();
 
     /// <summary>
     /// Checks if the given client IP is allowed to create a new room.
     /// </summary>
     /// <param name="clientIp">the IP of the client</param>
     /// <returns></returns>
-    public bool MayCreateRoom(string clientIp)
+    public static bool MayCreateRoom(string clientIp)
     {
-        if (!_clientCooldowns.TryGetValue(clientIp, out long until))
+        if (!_clientCooldowns.TryGetValue(clientIp, out DateTime until))
         {
             return true;
         }
-        bool hasExpired = DateTimeOffset.Now.ToUnixTimeMilliseconds() >= until;
+        bool hasExpired = DateTime.UtcNow >= until;
         if (hasExpired)
         {
             _clientCooldowns.Remove(clientIp, out _);
@@ -51,18 +59,17 @@ public sealed class RoomRegistry
     /// 'Dying' state for long enough. This method should be called 
     /// periodically (once every few minutes).
     /// </summary>
-    public void RunCleanup()
+    public static void RunCleanup()
     {
-        long now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
         foreach (var entry in _clientCooldowns)
         {
-            if (now < entry.Value) { continue; }
+            if (DateTime.UtcNow < entry.Value) { continue; }
             _clientCooldowns.Remove(entry.Key, out _);
         }
         foreach (var entry in _rooms)
         {
             if (entry.Value.State is not RoomState.Dying dying) { continue; }
-            if (now < dying.Until) { continue; }
+            if (DateTime.UtcNow < dying.Until) { continue; }
             CloseRoom(entry.Key);
         }
     }
@@ -74,20 +81,14 @@ public sealed class RoomRegistry
     /// <param name="clientIp">the IP of the client</param>
     /// <param name="isPublic">starting 'RoomIsPublic'-property of the room</param>
     /// <returns></returns>
-    public string CreateRoom(string clientIp, bool isPublic)
+    public static Guid CreateRoom(string clientIp, bool isPublic)
     {
-        string id;
-        do
-        {
-            id = Guid.NewGuid().ToString();
-        }
-        while (_rooms.ContainsKey(id));
+        Guid id = Guid.NewGuid();
         var settings = new RoomSettings(isPublic);
         var room = new Room(id, settings);
         _rooms[id] = room;
         SetRoomPublic(id, isPublic);
-        _clientCooldowns[clientIp] = DateTimeOffset.Now.ToUnixTimeMilliseconds()
-            + CreationCooldownMs;
+        _clientCooldowns[clientIp] = DateTime.UtcNow + CreationCooldown;
         return id;
     }
 
@@ -98,10 +99,10 @@ public sealed class RoomRegistry
     /// </summary>
     /// <param name="roomId">the ID of the room</param>
     /// <param name="isPublic">whether or not the room should be visible</param>
-    public void SetRoomPublic(string roomId, bool isPublic)
+    public static void SetRoomPublic(Guid roomId, bool isPublic)
     {
         Room? foundRoom = _rooms[roomId];
-        if(foundRoom is not Room room) { return; }
+        if (foundRoom is not Room room) { return; }
         if (isPublic) { _publicRooms[roomId] = room; }
         else { _publicRooms.Remove(roomId, out _); }
     }
@@ -110,13 +111,13 @@ public sealed class RoomRegistry
     /// Disconnects all players from the room with the given ID and closes it.
     /// </summary>
     /// <param name="roomId">the ID of the room to close</param>
-    public void CloseRoom(string roomId)
+    public static void CloseRoom(Guid roomId)
     {
         _publicRooms.Remove(roomId, out _);
         _rooms.Remove(roomId, out Room? room);
         room?.OnClose();
     }
-    
+
     /// <summary>
     /// Finds the most suitable public room for a new player to connect to.
     /// This involves searching all public rooms for the one that (in order of
@@ -127,9 +128,9 @@ public sealed class RoomRegistry
     ///   (or since the room has been created, whichever happend later)
     /// </summary>
     /// <returns>The Id of the found room, or null if none was found</returns>
-    public string? FindPublicRoom()
+    public static Guid? FindPublicRoom()
     {
-        string? bestId = null;
+        Guid? bestId = null;
         int bestPlayerC = 0;
         long bestLastGame = long.MaxValue;
         foreach (var entry in _publicRooms)

@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Linton.Server;
 
+
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum TrainNameLanguage
 {
@@ -26,4 +27,4 @@ public record RoomSettings(
     bool TrainNameChanges = true,
     bool VariedTrainStyles = true,
     TrainLength TrainLength = TrainLength.Medium
-) {}
+) { }

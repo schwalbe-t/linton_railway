@@ -20,11 +20,10 @@ public enum TrainLength
     [EnumMember(Value = "long")] Long
 }
 
-public class RoomSettings
-{
-    public required bool RoomIsPublic;
-    public TrainNameLanguage TrainNameLanguage = TrainNameLanguage.English;
-    public bool TrainNameChanges = true;
-    public bool VariedTrainStyles = true;
-    public TrainLength TrainLength = TrainLength.Medium;
-}
+public record RoomSettings(
+    bool IsPublic,
+    TrainNameLanguage TrainNameLanguage = TrainNameLanguage.English,
+    bool TrainNameChanges = true,
+    bool VariedTrainStyles = true,
+    TrainLength TrainLength = TrainLength.Medium
+) {}

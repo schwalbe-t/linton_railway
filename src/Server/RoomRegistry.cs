@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 
 namespace Linton.Server;
 
-public class RoomRegistry
+public sealed class RoomRegistry
 {
 
     public static readonly RoomRegistry Instance = new();
@@ -82,7 +82,7 @@ public class RoomRegistry
             id = Guid.NewGuid().ToString();
         }
         while (_rooms.ContainsKey(id));
-        var settings = new RoomSettings { RoomIsPublic = isPublic };
+        var settings = new RoomSettings(isPublic);
         var room = new Room(id, settings);
         _rooms[id] = room;
         SetRoomPublic(id, isPublic);
@@ -117,9 +117,33 @@ public class RoomRegistry
         room?.OnClose();
     }
     
+    /// <summary>
+    /// Finds the most suitable public room for a new player to connect to.
+    /// This involves searching all public rooms for the one that (in order of
+    /// decreasing priority):
+    /// - Has less than the target number of players
+    /// - Has the highest number of players
+    /// - Has had the highest duration of time pass since a game has started
+    ///   (or since the room has been created, whichever happend later)
+    /// </summary>
+    /// <returns>The Id of the found room, or null if none was found</returns>
     public string? FindPublicRoom()
     {
-        
+        string? bestId = null;
+        int bestPlayerC = 0;
+        long bestLastGame = long.MaxValue;
+        foreach (var entry in _publicRooms)
+        {
+            int roomPlayerC = entry.Value.Connected.Count;
+            if (roomPlayerC >= MaxNumPublicPlayers) { continue; }
+            if (roomPlayerC < bestPlayerC) { continue; }
+            long roomLastGame = entry.Value.LastGameTime;
+            if (roomLastGame > bestLastGame) { continue; }
+            bestId = entry.Key;
+            bestPlayerC = roomPlayerC;
+            bestLastGame = roomLastGame;
+        }
+        return bestId;
     }
 
 }

@@ -13,10 +13,9 @@ public class RoomApiController : ControllerBase
     }
 
     [HttpPost("create")]
-    public IActionResult CreateRoom()
-    {
-
-    }
+    public IActionResult CreateRoom() => AttemptRoomCreation(
+        HttpContext.Connection.RemoteIpAddress
+    )
 
     [HttpGet("/findPublic")]
     public IActionResult FindPublicRoom()

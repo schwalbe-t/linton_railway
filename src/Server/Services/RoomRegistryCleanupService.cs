@@ -9,7 +9,7 @@ public sealed class RoomRegistryCleanupService(
 
     readonly ILogger<RoomRegistryCleanupService> _logger = logger;
 
-    public override TimeSpan Interval => TimeSpan.FromSeconds(5);
+    public override TimeSpan Interval => TimeSpan.FromMinutes(5);
 
     public override void Run()
     {

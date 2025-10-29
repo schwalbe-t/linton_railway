@@ -92,7 +92,9 @@ public sealed class Socket(WebSocket connection)
     /// </summary>
     /// <param name="message">the message to send</param>
     public void SendJson(object? message)
-        => SendText(JsonConvert.SerializeObject(message));
+        => SendText(JsonConvert.SerializeObject(
+            message, JsonSettings.Settings
+        ));
 
     /// <summary>
     /// Closes this connection asynchronously, giving the ability to wait
@@ -131,7 +133,6 @@ public sealed class Socket(WebSocket connection)
         WebSocketCloseStatus reason = WebSocketCloseStatus.NormalClosure
     )
     {
-        // No need to await since we don't care about the result
         _ = CloseAsync(reason);
     }
 

@@ -47,6 +47,7 @@ public abstract class RoomState
         public override string TypeString => "waiting";
 
         readonly ConcurrentDictionary<Guid, bool> _ready = new();
+        public IReadOnlyDictionary<Guid, bool> Ready => _ready;
 
         public override void Update(Room room)
         {
@@ -55,12 +56,26 @@ public abstract class RoomState
                 room.State = new Dying();
                 return;
             }
-            bool allReady = _ready.Values.All(r => r);
+            bool allReady = room.Connected.Keys.All(
+                p => _ready.GetValueOrDefault(p)
+            );
             if (!allReady) { return; }
             Dictionary<Guid, string> playing = room.Connected
                 .ToDictionary(e => e.Key, e => e.Value.Name);
             var game = new GameInstance(playing);
+            // TODO! use broadcastevent to broadcast terrain info
             room.State = new Playing(game);
+        }
+
+        /// <summary>
+        /// Called when a player becomes ready.
+        /// </summary>
+        /// <param name="room">the room</param>
+        /// <param name="playerId">the ID of the player</param>
+        public void OnHasBecomeReady(Room room, Guid playerId)
+        {
+            _ready[playerId] = true;
+            room.BroadcastRoomInfo();
         }
     }
 

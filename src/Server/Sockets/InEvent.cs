@@ -63,7 +63,7 @@ public abstract record InEvent
         [property: JsonProperty("contents")] string Contents
     ) : InEvent
     {
-        public const int ContentLengthLimit = 256;
+        public const int LengthLimit = 256;
     }
 
 }

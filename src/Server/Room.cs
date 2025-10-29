@@ -1,7 +1,12 @@
 
 using System.Collections.Concurrent;
+using Linton.Server.Sockets;
+using Newtonsoft.Json;
 
 namespace Linton.Server;
+
+
+public record User(string Name, Socket Socket) { }
 
 
 public class Room(Guid id, RoomSettings settings)
@@ -22,6 +27,10 @@ public class Room(Guid id, RoomSettings settings)
 
     readonly Lock _lock = new();
 
+    /// <summary>
+    /// The current state of the room.
+    /// Updating this will trigger a room info event broadcast.
+    /// </summary>
     RoomState _state = new RoomState.Dying();
     public RoomState State
     {
@@ -33,7 +42,21 @@ public class Room(Guid id, RoomSettings settings)
         }
     }
 
+    bool _isClosed = false;
+    /// <summary>
+    /// Specifies if the room is closed, meaning no new players are allowed
+    /// to join the room.
+    /// </summary>
+    public bool IsClosed
+    {
+        get { lock (_lock) { return _isClosed; } }
+        private set { lock (_lock) { _isClosed = value; } }
+    }
+
     readonly ConcurrentDictionary<Guid, User> _connected = new();
+    /// <summary>
+    /// A map of user IDs to users for all currently connected users.
+    /// </summary>
     public IReadOnlyDictionary<Guid, User> Connected => _connected;
 
     Guid? _owner = null;
@@ -41,6 +64,7 @@ public class Room(Guid id, RoomSettings settings)
     /// Specifies the owner of the room (or null if the room is empty).
     /// The owner is the one that is allowed to change room settings and
     /// disconnect players.
+    /// Updating this will trigger a room info event broadcast.
     /// </summary>
     public Guid? Owner
     {
@@ -57,6 +81,26 @@ public class Room(Guid id, RoomSettings settings)
     /// when the room was created).
     /// </summary>
     public long LastGameTime = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+
+    /// <summary>
+    /// The unique identifier of this room.
+    /// </summary>
+    public readonly Guid Id = id;
+
+    RoomSettings _settings = settings;
+    /// <summary>
+    /// The current settings of the room.
+    /// Updating these will trigger a room info event broadcast.
+    /// </summary>
+    public RoomSettings Settings
+    {
+        get { lock (_lock) { return _settings; } }
+        set
+        {
+            lock (_lock) { _settings = value; }
+            BroadcastRoomInfo();
+        }
+    }
 
     /// <summary>
     /// Updates the state of the room.
@@ -79,9 +123,18 @@ public class Room(Guid id, RoomSettings settings)
     /// </summary>
     /// <param name="playerId">the id of the connecting player</param>
     /// <param name="name">the name of the connecting player</param>
-    public void Connect(Guid playerId, string name)
+    /// <param name="socket">the connection to the player</param>
+    /// <returns>whether the connection was successful</returns>
+    public bool TryConnect(Guid playerId, string name, Socket socket)
     {
-
+        lock (_lock)
+        {
+            if (IsClosed) { return false; }
+            _connected[playerId] = new User(name, socket);
+        }
+        // TODO! send terrain info to connected player
+        BroadcastRoomInfo();
+        return true;
     }
 
     /// <summary>
@@ -90,16 +143,40 @@ public class Room(Guid id, RoomSettings settings)
     /// <param name="playerId">the id of the disconnected player</param>
     public void OnDisconnect(Guid playerId)
     {
-
+        _connected.Remove(playerId, out _);
+        if (State is RoomState.Playing playing)
+        {
+            playing.Game.OnDisconnect(playerId);
+        }
+        BroadcastRoomInfo();
     }
 
     /// <summary>
     /// Disconnects all connected clients from the room and does anything else
     /// required before deletion of the room.
+    /// This sets the room to be closed, meaning no other clients are allowed
+    /// to join it.
     /// </summary>
     public void OnClose()
     {
-        // TODO: disconnect all
+        IsClosed = true;
+        foreach (User user in _connected.Values)
+        {
+            user.Socket.Close();
+        }
+    }
+
+    /// <summary>
+    /// Broadcasts the given event to all connected clients.
+    /// </summary>
+    /// <param name="e">the event to broadcast</param>
+    public void BroadcastEvent(OutEvent e)
+    {
+        string msg = JsonConvert.SerializeObject(e, JsonSettings.Settings);
+        foreach (User user in _connected.Values)
+        {
+            user.Socket.SendText(msg);
+        }
     }
 
     /// <summary>
@@ -107,25 +184,25 @@ public class Room(Guid id, RoomSettings settings)
     /// critical error and that disconnetion is imminent.
     /// </summary>
     public void BroadcastRoomCrash()
-    {
-
-    }
+        => BroadcastEvent(new OutEvent.RoomCrashed());
 
     /// <summary>
     /// Broadcasts the room info event to all connected clients.
     /// </summary>
     public void BroadcastRoomInfo()
     {
-
-    }
-    
-    /// <summary>
-    /// Should the room be playing at the time of calling, the terrain info
-    /// of the game instance is broadcasted to all connected clients. 
-    /// </summary>
-    public void BroadcastTerrainInfo()
-    {
-        // TODO!
+        if(Owner is not Guid ownerId) { return; }
+        List<OutEvent.RoomInfo.PlayerInfo> players = _connected
+            .Select(entry => new OutEvent.RoomInfo.PlayerInfo(
+                Id: entry.Key,
+                Name: entry.Value.Name,
+                IsReady: State is RoomState.Waiting waiting
+                    && waiting.Ready.GetValueOrDefault(entry.Key)
+            ))
+            .ToList();
+        BroadcastEvent(new OutEvent.RoomInfo(
+            players, ownerId, Settings, State.TypeString
+        ));
     }
 
 }

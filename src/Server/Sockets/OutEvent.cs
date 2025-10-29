@@ -13,18 +13,18 @@ public abstract record OutEvent
 {
 
     [property: JsonProperty("type")]
-    public abstract string Type { get; }
+    public abstract string TypeString { get; }
 
     /// <summary>
     /// Invalid message received from client, explains why
-    /// (usually followed by socket closing with reason PROTOCOL_ERROR)
+    /// (usually followed by socket closing with reason PolicyViolation)
     /// </summary>
     /// <param name="Reason">why a previous message was invalid</param>
     public sealed record InvalidMessage(
         [property: JsonProperty("reason")] string Reason
     ) : OutEvent
     {
-        public override string Type => "invalid_message";
+        public override string TypeString => "invalid_message";
     }
 
     /// <summary>
@@ -35,7 +35,7 @@ public abstract record OutEvent
         [property: JsonProperty("playerId")] Guid PlayerId
     ) : OutEvent
     {
-        public override string Type => "identification";
+        public override string TypeString => "identification";
     }
 
     /// <summary>
@@ -48,11 +48,11 @@ public abstract record OutEvent
     public sealed record RoomInfo(
         [property: JsonProperty("players")] List<RoomInfo.PlayerInfo> Players,
         [property: JsonProperty("owner")] Guid OwnerId,
-        [property: JsonProperty("settigns")] RoomSettings Settings,
+        [property: JsonProperty("settings")] RoomSettings Settings,
         [property: JsonProperty("state")] string State
     ) : OutEvent
     {
-        public override string Type => "room_info";
+        public override string TypeString => "room_info";
 
         /// <summary>
         /// Represents information about other players in the room
@@ -76,7 +76,7 @@ public abstract record OutEvent
     /// </summary>
     public sealed record RoomCrashed : OutEvent
     {
-        public override string Type => "room_crashed";
+        public override string TypeString => "room_crashed";
     }
 
     /// <summary>
@@ -89,7 +89,7 @@ public abstract record OutEvent
         [property: JsonProperty("contents")] string Contents
     ) : OutEvent
     {
-        public override string Type => "chat_message";
+        public override string TypeString => "chat_message";
     }
 
 }

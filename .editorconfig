@@ -2,3 +2,6 @@
 
 # IDE0130: Namespace does not match folder structure
 dotnet_diagnostic.IDE0130.severity = none
+
+# IDE0305: Simplify collection initialization
+dotnet_style_prefer_collection_expression = never

@@ -233,6 +233,7 @@ let playerId;
 let roomOwnerId;
 
 function onSocketEvent(event) {
+    console.log(event);
     switch(event.type) {
         case "invalid_message": {
             console.error(`Server reported invalid message: ${event.reason}`);

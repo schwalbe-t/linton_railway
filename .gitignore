@@ -1,40 +1,36 @@
-HELP.md
-.gradle
-build/
-!gradle/wrapper/gradle-wrapper.jar
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
+# Build results
 bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
+obj/
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
-out/
-!**/src/main/**/out/
-!**/src/test/**/out/
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.userprefs
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
+# Rider / JetBrains IDE
+.idea/
+*.sln.iml
 
-### VS Code ###
+# VS Code
 .vscode/
 
-### Kotlin ###
-.kotlin
+# NuGet packages
+*.nupkg
+packages/
+.nuget/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# ASP.NET Core wwwroot publish artifacts (optional)
+wwwroot/lib/
+wwwroot/*.bundle.js
+
+# Mac/Linux system files
+.DS_Store
+Thumbs.db

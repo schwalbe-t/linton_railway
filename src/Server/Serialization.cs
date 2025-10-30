@@ -9,6 +9,10 @@ public static class JsonSettings
 {
     public static readonly JsonSerializerSettings Settings = new()
     {
-        Converters = { new InEventConverter() }
+        Converters =
+        {
+            new InEventConverter(),
+            new Vector3Converter()
+        }
     };
 }

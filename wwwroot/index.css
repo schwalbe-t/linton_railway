@@ -22,7 +22,7 @@
     text-align: center;
 }
 #room-selector > button {
-    min-width: 30vmin;
+    min-width: 35vmin;
 }
 #room-create-error {
     margin-top: 0.5rem;

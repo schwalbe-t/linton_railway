@@ -33,5 +33,4 @@ public record RoomSettings(
     bool VariedTrainStyles = true,
     [property: JsonProperty("trainLength")]
     TrainLength TrainLength = TrainLength.Medium
-)
-{ }
+);

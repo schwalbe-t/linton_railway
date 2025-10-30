@@ -6,7 +6,7 @@ using Newtonsoft.Json;
 namespace Linton.Server;
 
 
-public record User(string Name, Socket Socket) { }
+public record User(string Name, Socket Socket);
 
 
 public class Room(Guid id, RoomSettings settings)

@@ -1,6 +1,5 @@
 
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace Linton.Server.Sockets;
 
@@ -31,7 +30,7 @@ public abstract record InEvent
     /// <summary>
     /// Used by clients to specify that they are ready for the game to start.
     /// </summary>
-    public sealed record IsReady : InEvent { }
+    public sealed record IsReady : InEvent;
 
     /// <summary>
     /// Used by clients to request disconnection of a player.
@@ -41,7 +40,7 @@ public abstract record InEvent
     /// <param name="KickedId">the ID of the player to disconnect</param>
     public sealed record KickPlayer(
         [property: JsonProperty("kickedId")] Guid KickedId
-    ) : InEvent { }
+    ) : InEvent;
 
     /// <summary>
     /// Used by clients to change room sessions.
@@ -51,7 +50,7 @@ public abstract record InEvent
     /// <param name="NewSettings">the new settings of the room</param>
     public sealed record ConfigureRoom(
         [property: JsonProperty("newSettings")] RoomSettings NewSettings
-    ) : InEvent { }
+    ) : InEvent;
 
     /// <summary>
     /// Used by clients to send messages to all other players connected to the
@@ -66,42 +65,4 @@ public abstract record InEvent
         public const int LengthLimit = 256;
     }
 
-}
-
-
-public sealed class InEventConverter : JsonConverter
-{
-    public override bool CanConvert(Type objectType)
-        => typeof(InEvent).IsAssignableFrom(objectType);
-
-    public override object? ReadJson(
-        JsonReader reader, Type objectType, object? existingValue,
-        JsonSerializer serializer
-    )
-    {
-        var jsonObject = JObject.Load(reader);
-        string? type = jsonObject["type"]?.ToString();
-        Type resultType = type switch
-        {
-            "join_room" => typeof(InEvent.JoinRoom),
-            "is_ready" => typeof(InEvent.IsReady),
-            "kick_player" => typeof(InEvent.KickPlayer),
-            "configure_room" => typeof(InEvent.ConfigureRoom),
-            "chat_message" => typeof(InEvent.ChatMessage),
-            _ => throw new JsonSerializationException(
-                $"Unknown InEvent type '{type}'"
-            )
-        };
-        return jsonObject.ToObject(resultType, new JsonSerializer())
-            ?? throw new JsonSerializationException(
-                $"Failed to deserialize InEvent type '{type}'"
-            );
-    }
-
-    public override void WriteJson(
-        JsonWriter writer, object? value, JsonSerializer serializer
-    )
-    {
-        throw new NotImplementedException("InEvent serialization");
-    }
 }

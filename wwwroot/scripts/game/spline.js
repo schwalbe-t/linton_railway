@@ -5,10 +5,10 @@ export const quadspline = Object.freeze({
 
     inSegment: function(spline, segmentI, t) {
         if(segmentI < 0 || spline.segments.length === 0) {
-            return spline.start;
+            return spline.start.clone();
         }
         if(segmentI >= spline.segments.length) {
-            return spline.segments.at(-1).to;
+            return spline.segments.at(-1).to.clone();
         }
         const start = segmentI === 0? spline.start 
             : spline.segments[segmentI - 1].to;

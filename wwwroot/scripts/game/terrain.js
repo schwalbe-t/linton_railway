@@ -32,7 +32,8 @@ class ChunkElevation {
                 const elev 
                     = noise.perlin2(tileX / 3.14, tileZ / 3.14)
                     + noise.perlin2(tileX / 12.5, tileZ / 12.5) * 10
-                    + noise.perlin2(tileX / 21, tileZ / 21) * 20;
+                    + noise.perlin2(tileX / 21, tileZ / 21) * 20
+                    + noise.perlin2(tileX / 67, tileZ / 67) * 200;
                 this.elevation[this.indexOfRel(rTileX, rTileZ)] = elev;
             }
         }
@@ -59,7 +60,7 @@ class ChunkElevation {
 
 export class TerrainChunk {
 
-    static ROCK_MIN_DIFF_Y = 3;
+    static ROCK_MIN_DIFF_Y = 4;
 
     buildTerrainMesh(details, elev) {
         const vertData = [];

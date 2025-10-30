@@ -119,7 +119,6 @@ public sealed class Socket(WebSocket connection)
         }
         finally
         {
-            _connection.Dispose();
             _sendLock.Release();
         }
     }

@@ -1,4 +1,5 @@
 
+using Linton.Game;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -90,6 +91,17 @@ public abstract record OutEvent
     ) : OutEvent
     {
         public override string TypeString => "chat_message";
+    }
+
+    /// <summary>
+    /// Used to tell clients about the current world terrain.
+    /// </summary>
+    /// <param name="Terrain">the current world terrain</param>
+    public sealed record TerrainInfo(
+        [property: JsonProperty("terrain")] Terrain Terrain
+    ) : OutEvent
+    {
+        public override string TypeString => "terrain_info";
     }
 
 }

@@ -67,8 +67,9 @@ public abstract class SocketController(ILogger logger) : ControllerBase
                 if (received is not string message) { break; }
                 OnMessage(socket, message);
             }
-            catch (WebSocketException)
+            catch (WebSocketException ex)
             {
+                _logger.LogError(ex, "");
                 break;
             }
             catch (Exception ex)

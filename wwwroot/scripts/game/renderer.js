@@ -17,7 +17,7 @@ export class Renderer {
     static SUN_ORTHO_PROJ = {
         left: -200, right: 200,
         bottom: -200, top: 200,
-        near: 10, far: 500
+        near: 10, far: 1000
     };
     static SHADOW_MAP_RES = 4096;
     static DEPTH_BIAS = 0.05;

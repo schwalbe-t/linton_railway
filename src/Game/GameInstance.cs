@@ -8,18 +8,30 @@ namespace Linton.Game;
 /// <param name="playing">
 /// a map of (playerId -> playerName) for all participating players
 /// </param>
-public class GameInstance(Dictionary<Guid, string> playing)
+public class GameInstance
 {
 
     readonly Lock _lock = new();
 
-    readonly Dictionary<Guid, Player> _playing = playing
-        .ToDictionary(p => p.Key, p => new Player(p.Key, p.Value));
+    readonly Dictionary<Guid, Player> _playing;
 
     bool _hasEnded = false;
     public bool HasEnded
     {
         get { lock (_lock) { return _hasEnded; } }
+    }
+
+    readonly Random _rng;
+
+    public readonly Terrain Terrain;
+
+    public GameInstance(Dictionary<Guid, string> playing)
+    {
+        _playing = playing
+            .ToDictionary(p => p.Key, p => new Player(p.Key, p.Value));
+        ushort seed = (ushort)new Random().Next(ushort.MaxValue + 1);
+        _rng = new Random(seed);
+        Terrain = new Terrain(playing.Count, seed, _rng);
     }
 
     /// <summary>

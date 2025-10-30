@@ -132,7 +132,10 @@ public class Room(Guid id, RoomSettings settings)
             if (IsClosed) { return false; }
             _connected[playerId] = new User(name, socket);
         }
-        // TODO! send terrain info to connected player
+        if (State is RoomState.Playing playing)
+        {
+            socket.SendJson(new OutEvent.TerrainInfo(playing.Game.Terrain));
+        }
         BroadcastRoomInfo();
         return true;
     }
@@ -191,7 +194,7 @@ public class Room(Guid id, RoomSettings settings)
     /// </summary>
     public void BroadcastRoomInfo()
     {
-        if(Owner is not Guid ownerId) { return; }
+        if (Owner is not Guid ownerId) { return; }
         List<OutEvent.RoomInfo.PlayerInfo> players = _connected
             .Select(entry => new OutEvent.RoomInfo.PlayerInfo(
                 Id: entry.Key,

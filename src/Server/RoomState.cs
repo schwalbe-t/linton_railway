@@ -1,6 +1,7 @@
 
 using System.Collections.Concurrent;
 using Linton.Game;
+using Linton.Server.Sockets;
 
 namespace Linton.Server;
 
@@ -63,7 +64,7 @@ public abstract class RoomState
             Dictionary<Guid, string> playing = room.Connected
                 .ToDictionary(e => e.Key, e => e.Value.Name);
             var game = new GameInstance(playing);
-            // TODO! use broadcastevent to broadcast terrain info
+            room.BroadcastEvent(new OutEvent.TerrainInfo(game.Terrain));
             room.State = new Playing(game);
         }
 

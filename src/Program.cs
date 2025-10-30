@@ -24,6 +24,7 @@ builder.Services.AddHostedService<RoomUpdateService>();
 builder.Services.AddHostedService<RoomRegistryCleanupService>();
 
 var app = builder.Build();
+app.UseExceptionHandler("/");
 app.Use(async (context, next) =>
 {
     switch (context.Request.Path)

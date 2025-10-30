@@ -47,7 +47,7 @@ public sealed class InEventConverter : JsonConverter
 public sealed class Vector3Converter : JsonConverter
 {
     public override bool CanConvert(Type objectType)
-        => typeof(InEvent).IsAssignableFrom(objectType);
+        => typeof(Vector3).IsAssignableFrom(objectType);
 
     public override object? ReadJson(
         JsonReader reader, Type objectType, object? existingValue,

@@ -13,7 +13,7 @@ bool isInShadow(vec3 worldPosition, vec3 surfaceNormal, bool oobShadow) {
     vec2 uvPosition = ndcToUv(ndcPosition);
     bool inSunRange = 0.0 <= uvPosition.x && uvPosition.x <= 1.0
         && 0.0 <= uvPosition.y && uvPosition.y <= 1.0;
-    if(!inSunRange) { return oobShadow; }
+    if (!inSunRange) { return oobShadow; }
     float surfaceDepth = ndcToDepth(ndcPosition);
     float lightDepth = texture(uShadowMap, uvPosition).r;
     return surfaceDepth > lightDepth + uDepthBias;

@@ -14,8 +14,8 @@ out vec4 oColor;
 
 void main() {
     oColor = texture(uTexture, fTexCoords);
-    if(oColor.a == 0.0) { discard; }
-    if(length(oColor.rgb - PLACEHOLDER) <= PLACEHOLDER_DIST) {
+    if (oColor.a == 0.0) { discard; }
+    if (length(oColor.rgb - PLACEHOLDER) <= PLACEHOLDER_DIST) {
         oColor.rgb = uCarriageColor;
     }
     oColor = shadedColor(oColor, fWorldPosition, fWorldNormal);

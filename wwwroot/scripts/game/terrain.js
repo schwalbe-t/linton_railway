@@ -25,8 +25,8 @@ class ChunkElevation {
         this.originTileX = chunks.toTiles(chunkX);
         this.originTileZ = chunks.toTiles(chunkZ);
         this.elevation = new Array(chunkSizeTiles ** 2);
-        for(let rTileX = 0; rTileX < (chunkSizeTiles + 1); rTileX += 1) {
-            for(let rTileZ = 0; rTileZ < (chunkSizeTiles + 1); rTileZ += 1) {
+        for (let rTileX = 0; rTileX < (chunkSizeTiles + 1); rTileX += 1) {
+            for (let rTileZ = 0; rTileZ < (chunkSizeTiles + 1); rTileZ += 1) {
                 const tileX = this.originTileX + rTileX;
                 const tileZ = this.originTileZ + rTileZ;
                 const elev 
@@ -66,8 +66,8 @@ export class TerrainChunk {
         const vertData = [];
         const elemData = [];
         let nextVertIdx = 0;
-        for(let rTileL = 0; rTileL < chunks.toTiles(1); rTileL += 1) {
-            for(let rTileT = 0; rTileT < chunks.toTiles(1); rTileT += 1) {
+        for (let rTileL = 0; rTileL < chunks.toTiles(1); rTileL += 1) {
+            for (let rTileT = 0; rTileT < chunks.toTiles(1); rTileT += 1) {
                 const vertexPos = (rrTileX, rrTileZ) => {
                     const rTileX = rTileL + rrTileX;
                     const rTileZ = rTileT + rrTileZ;
@@ -127,7 +127,7 @@ export class TerrainChunk {
                 const cutTlToBr = tlToBrDiff !== trToBlDiff
                     ? tlToBrDiff < trToBlDiff
                     : tlToBrMax < trToBlMax;
-                if(cutTlToBr) {
+                if (cutTlToBr) {
                     // tl---tr
                     //  | \ |
                     // bl---br
@@ -182,8 +182,8 @@ export class Terrain {
         this.sizeT = chunks.toTiles(this.sizeC);
         this.sizeU = chunks.toUnits(this.sizeC);
         this.chunks = [];
-        for(let chunkX = 0; chunkX < this.sizeC; chunkX += 1) {
-            for(let chunkZ = 0; chunkZ < this.sizeC; chunkZ += 1) {
+        for (let chunkX = 0; chunkX < this.sizeC; chunkX += 1) {
+            for (let chunkZ = 0; chunkZ < this.sizeC; chunkZ += 1) {
                 this.chunks.push(new TerrainChunk(
                     chunkX, chunkZ, details
                 ));
@@ -192,7 +192,7 @@ export class Terrain {
     }
 
     render(renderer) {
-        for(const chunk of this.chunks) {
+        for (const chunk of this.chunks) {
             renderer.renderGeometry(
                 chunk.terrainMesh, Terrain.TERRAIN_TEXTURE,
                 chunk.terrainMeshInstances

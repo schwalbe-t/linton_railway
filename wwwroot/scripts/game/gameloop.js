@@ -12,7 +12,7 @@ export function onFrame(f) {
 let lastTimestampMs = -1;
 
 function gameloop(timestampMs) {
-    if(window.gameRunning) {
+    if (window.gameRunning) {
         const deltaTimeS = lastTimestampMs === -1? 0
             : (timestampMs - lastTimestampMs) / 1000;
         frame(deltaTimeS);

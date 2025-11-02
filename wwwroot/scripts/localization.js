@@ -208,7 +208,7 @@ const selectedLocale = localStorage.selectedLocale || detectLocale() || "en";
 function detectLocale() {
     const userLocale = navigator.language || navigator.userLanguage;
     const locale = userLocale.split("-")[0];
-    if(!SHORT_LOCALES.includes(locale)) { return undefined; }
+    if (!SHORT_LOCALES.includes(locale)) { return undefined; }
     localStorage.selectedLocale = locale;
     return locale;
 }
@@ -222,13 +222,13 @@ const getLocalized = key => LOCALIZATION[key][localStorage.selectedLocale];
 
 window.addEventListener("load", () => {
     const elements = document.querySelectorAll("*");
-    for(const e of elements) {
+    for (const e of elements) {
         const key = e.getAttribute("localized");
-        if(key !== null) {
+        if (key !== null) {
             e.innerHTML = getLocalized(key);
         }
         const phKey = e.getAttribute("placeholderLocalized");
-        if(phKey !== null) {
+        if (phKey !== null) {
             e.setAttribute("placeholder", getLocalized(phKey));
         }
     }

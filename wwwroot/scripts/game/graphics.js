@@ -10,7 +10,7 @@ let gl = null;
 let initHandlers = [];
 
 export function onGraphicsInit(f) {
-    if(gl !== null) {
+    if (gl !== null) {
         f()
     } else {
         initHandlers.push(f);
@@ -31,11 +31,11 @@ export function initGraphics(canvasElement) {
 export function updateGraphics() {
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
-    if(canvas.width !== width || canvas.height !== height) {
+    if (canvas.width !== width || canvas.height !== height) {
         // size of canvas has changed
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
-        if(AbstractFramebuffer.bound === defaultFramebuffer) {
+        if (AbstractFramebuffer.bound === defaultFramebuffer) {
             // Re-bind the default buffer if it's the current buffer
             // since its size has changed and we therefore need another call
             // to 'gl.viewport'
@@ -62,7 +62,7 @@ function expandShaderIncludes(source, path) {
         .slice(0, -1)
         .join("/");
     return source.split("\n").map(line => {
-        if(!line.startsWith(SHADER_INCL)) {
+        if (!line.startsWith(SHADER_INCL)) {
             return line;
         }
         const inclPathEnd = line.indexOf("\"", SHADER_INCL.length);
@@ -75,9 +75,9 @@ function expandShaderIncludes(source, path) {
 }
 
 async function awaitShaderIncludes(lines) {
-    for(let lineI = 0; lineI < lines.length; lineI += 1) {
+    for (let lineI = 0; lineI < lines.length; lineI += 1) {
         const line = lines[lineI];
-        if(typeof line === "string") { continue; }
+        if (typeof line === "string") { continue; }
         const repl = await line;
         lines[lineI] = await awaitShaderIncludes(repl);
     }
@@ -120,7 +120,7 @@ export class Shader {
         gl.attachShader(this.program, fragmentShader);
         gl.linkProgram(this.program);
         const linked = gl.getProgramParameter(this.program, gl.LINK_STATUS);
-        if(!linked) {
+        if (!linked) {
             console.error("Shader compilation failed!");
             console.error(`=== Linking ===\n`
                 + gl.getProgramInfoLog(this.program)
@@ -146,9 +146,9 @@ export class Shader {
     }
 
     allocateTexSlot(name, texture) {
-        for(let slot = 0; slot < this.textures.length; slot += 1) {
+        for (let slot = 0; slot < this.textures.length; slot += 1) {
             const entry = this.textures[slot];
-            if(entry.name !== name) { continue; }
+            if (entry.name !== name) { continue; }
             entry.texture = texture;
             return slot;
         }
@@ -160,52 +160,52 @@ export class Shader {
     setUniform(name, value) {
         this.partBind();
         let loc = this.uniforms[name];
-        if(loc === undefined) {
+        if (loc === undefined) {
             loc = gl.getUniformLocation(this.program, name);
             this.uniforms[name] = loc;
         }
-        if(loc === null) {
+        if (loc === null) {
             // fail silently - may have been optimized away
             return;
         }
         let isArray = false;
-        if(typeof value === "number") {
+        if (typeof value === "number") {
             gl.uniform1f(loc, value);
-        } else if(value instanceof Vector2) {
+        } else if (value instanceof Vector2) {
             gl.uniform2f(loc, value.x, value.y);
-        } else if(value instanceof Vector3) {
+        } else if (value instanceof Vector3) {
             gl.uniform3f(loc, value.x, value.y, value.z);
-        } else if(value instanceof Vector4) {
+        } else if (value instanceof Vector4) {
             gl.uniform4f(loc, value.x, value.y, value.z, value.w);
-        } else if(value instanceof Matrix3) {
+        } else if (value instanceof Matrix3) {
             gl.uniformMatrix3fv(loc, false, new Float32Array(value));
-        } else if(value instanceof Matrix4) {
+        } else if (value instanceof Matrix4) {
             gl.uniformMatrix4fv(loc, false, new Float32Array(value));
-        } else if(value instanceof Texture) {
+        } else if (value instanceof Texture) {
             const texture = value.texture;
             const slot = this.allocateTexSlot(name, texture);
             gl.activeTexture(gl.TEXTURE0 + slot);
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.uniform1i(loc, slot);
-        } else if(Array.isArray(value)) {
+        } else if (Array.isArray(value)) {
             isArray = true;
         } else {
             throw new Error("Uniform value type is unsupported");
         }
-        if(!isArray) { return; }
-        if(value.length === 0) { return; }
+        if (!isArray) { return; }
+        if (value.length === 0) { return; }
         const first = value[0];
-        if(typeof first === "number") {
+        if (typeof first === "number") {
             gl.uniform1fv(loc, new Float32Array(value));
-        } else if(first instanceof Vector2) {
+        } else if (first instanceof Vector2) {
             gl.uniform2fv(loc, new Float32Array(value.flat()));
-        } else if(first instanceof Vector3) {
+        } else if (first instanceof Vector3) {
             gl.uniform3fv(loc, new Float32Array(value.flat()));
-        } else if(first instanceof Vector4) {
+        } else if (first instanceof Vector4) {
             gl.uniform4fv(loc, new Float32Array(value.flat()));
-        } else if(first instanceof Matrix3) {
+        } else if (first instanceof Matrix3) {
             gl.uniformMatrix3fv(loc, false, new Float32Array(value.flat()));
-        } else if(first instanceof Matrix4) {
+        } else if (first instanceof Matrix4) {
             gl.uniformMatrix4fv(loc, false, new Float32Array(value.flat()));
         } else {
             throw new Error("Uniform array value type is unsupported");
@@ -218,16 +218,16 @@ export class Shader {
 
     // binds only the shader program itself if needed
     partBind() {
-        if(Shader.partlyBound === this) { return; }
+        if (Shader.partlyBound === this) { return; }
         gl.useProgram(this.program);
         Shader.partlyBound = this;
     }
 
     // binds both program and texture slots if needed
     fullBind() {
-        if(Shader.fullyBound === this) { return; }
+        if (Shader.fullyBound === this) { return; }
         this.partBind();
-        for(let slot = 0; slot < this.textures.length; slot += 1) {
+        for (let slot = 0; slot < this.textures.length; slot += 1) {
             const entry = this.textures[slot];
             gl.activeTexture(gl.TEXTURE0 + slot);
             gl.bindTexture(gl.TEXTURE_2D, entry.texture);
@@ -236,7 +236,7 @@ export class Shader {
     }
 
     delete() {
-        if(this.program !== null) { gl.deleteProgram(this.program); }
+        if (this.program !== null) { gl.deleteProgram(this.program); }
         this.program = null;
     }
     
@@ -251,7 +251,7 @@ export const DepthTesting = Object.freeze({
     ENABLED: Object.freeze({
         enabled: true,
         apply: function() {
-            if(DepthTesting.current.enabled) { return; }
+            if (DepthTesting.current.enabled) { return; }
             gl.enable(gl.DEPTH_TEST);
         }
     }),
@@ -259,7 +259,7 @@ export const DepthTesting = Object.freeze({
     DISABLED: Object.freeze({
         enabled: false, 
         apply: function() {
-            if(!DepthTesting.current.enabled) { return; }
+            if (!DepthTesting.current.enabled) { return; }
             gl.disable(gl.DEPTH_TEST);
         }
     })
@@ -289,11 +289,11 @@ export class Geometry {
         let vertexCount = 0;
         const vertData = [];
         const elemData = [];
-        for(const line of objText.split("\n")) {
+        for (const line of objText.split("\n")) {
             const elems = line.split("#")[0].split(" ");
             const parseVertex = elem => {
                 const indices = elem.split("/").map(Number);
-                for(const property of layout) {
+                for (const property of layout) {
                     const index = indices[property.objIdxPos] - 1;
                     const buf = property.buffer(positions, texCoords, normals);
                     vertData.push(...buf[index]);
@@ -302,7 +302,7 @@ export class Geometry {
                 vertexCount += 1;
                 return vertIdx;
             };
-            switch(elems[0]) {
+            switch (elems[0]) {
                 case "v":
                     positions.push(elems.slice(1, 4).map(Number));
                     break;
@@ -314,16 +314,16 @@ export class Geometry {
                     break;
                 case "f":
                     const indices = elems.slice(1).map(parseVertex);
-                    if(indices.length === 3) {
+                    if (indices.length === 3) {
                         elemData.push(indices[0], indices[1], indices[2]);
                         break;
                     }
-                    if(indices.length === 4) {
+                    if (indices.length === 4) {
                         elemData.push(indices[0], indices[1], indices[2]);
                         elemData.push(indices[0], indices[2], indices[3]);
                         break;
                     }
-                    for(let i = 1; i < indices.length - 1; i += 1) {
+                    for (let i = 1; i < indices.length - 1; i += 1) {
                         elemData.push(indices[0], indices[i], indices[i + 1]);
                     }
                     break;
@@ -350,7 +350,7 @@ export class Geometry {
         );
         const stride = layout.reduce((acc, size) => acc + (size * 4), 0);
         let byteOffset = 0;
-        for(let attrib = 0; attrib < layout.length; attrib += 1) {
+        for (let attrib = 0; attrib < layout.length; attrib += 1) {
             const size = layout[attrib];
             gl.enableVertexAttribArray(attrib);
             gl.vertexAttribPointer(
@@ -362,7 +362,7 @@ export class Geometry {
     }
 
     bind() {
-        if(Geometry.bound === this) { return; }
+        if (Geometry.bound === this) { return; }
         gl.bindVertexArray(this.vao);
         Geometry.bound = this;
     }
@@ -375,7 +375,7 @@ export class Geometry {
         framebuffer.bind();
         shader.fullBind();
         this.bind();
-        if(instanceCount > 1) {
+        if (instanceCount > 1) {
             gl.drawElementsInstanced(
                 gl.TRIANGLES, this.indexCount, gl.UNSIGNED_SHORT, 0, 
                 instanceCount
@@ -388,9 +388,9 @@ export class Geometry {
     }
 
     delete() {
-        if(this.vao !== null) { gl.deleteVertexArray(this.vao); }
-        if(this.vbo !== null) { gl.deleteBuffer(this.vbo); }
-        if(this.ebo !== null) { gl.deleteBuffer(this.ebo); }
+        if (this.vao !== null) { gl.deleteVertexArray(this.vao); }
+        if (this.vbo !== null) { gl.deleteBuffer(this.vbo); }
+        if (this.ebo !== null) { gl.deleteBuffer(this.ebo); }
         this.vao = null;
         this.vbo = null;
         this.ebo = null;
@@ -468,7 +468,7 @@ export class Texture {
     }
 
     delete() {
-        if(this.texture !== null) { gl.deleteTexture(this.texture); }
+        if (this.texture !== null) { gl.deleteTexture(this.texture); }
         this.texture = null;
     }
 
@@ -505,8 +505,8 @@ export class Model {
         textureUniformName = undefined,
         instanceCount = 1, depthTesting = DepthTesting.ENABLED,
     ) {
-        for(const mesh of this.meshes) {
-            if(textureUniformName !== undefined) {
+        for (const mesh of this.meshes) {
+            if (textureUniformName !== undefined) {
                 shader.setUniform(textureUniformName, mesh.texture);
             }
             mesh.geometry.render(
@@ -536,7 +536,7 @@ export class AbstractFramebuffer {
     }
 
     bind() {
-        if(AbstractFramebuffer.bound === this) { return; }
+        if (AbstractFramebuffer.bound === this) { return; }
         this.bindImpl();
         gl.viewport(0, 0, this.width, this.height);
         AbstractFramebuffer.bound = this;
@@ -579,10 +579,10 @@ export class Framebuffer extends AbstractFramebuffer {
     }
 
     assertMatchingSize() {
-        if(this.color === null || this.depth === null) { return; }
+        if (this.color === null || this.depth === null) { return; }
         const matchingSize = this.color.width === this.depth.width
             && this.color.height === this.depth.height;
-        if(matchingSize) { return; }
+        if (matchingSize) { return; }
         throw new Error(
             `Attached color is ${this.color.width}x${this.color.height}, `
                 + `but depth is ${this.depth.width}x${this.depth.height}`
@@ -618,7 +618,7 @@ export class Framebuffer extends AbstractFramebuffer {
     }
 
     bindImpl() {
-        if(this.color === null && this.depth === null) {
+        if (this.color === null && this.depth === null) {
             throw new Error("Framebuffer is empty");
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
@@ -637,7 +637,7 @@ export class Framebuffer extends AbstractFramebuffer {
     }
 
     delete() {
-        if(this.fbo !== null) { gl.deleteFramebuffer(this.fbo); }
+        if (this.fbo !== null) { gl.deleteFramebuffer(this.fbo); }
         this.fbo = null;
         this.color = null;
         this.depth = null;

@@ -12,7 +12,7 @@ const vec3 SHADOW_FACTOR = vec3(0.7, 0.85, 1.1);
 vec4 shadedColor(vec4 color, vec3 worldPos, vec3 worldNormal) {
     bool inShadow = diffuseIntensityOf(worldNormal) < DIFFUSE_LIMIT
         || isInShadow(worldPos, worldNormal, false);
-    if(!inShadow) { return color; }
+    if (!inShadow) { return color; }
     return vec4(color.rgb * SHADOW_FACTOR, color.a);
 }
 

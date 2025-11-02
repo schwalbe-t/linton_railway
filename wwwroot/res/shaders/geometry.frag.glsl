@@ -10,6 +10,6 @@ out vec4 oColor;
 
 void main() {
     oColor = texture(uTexture, fTexCoords);
-    if(oColor.a == 0.0) { discard; }
+    if (oColor.a == 0.0) { discard; }
     oColor = shadedColor(oColor, fWorldPosition, fWorldNormal);
 }

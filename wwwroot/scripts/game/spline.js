@@ -4,10 +4,10 @@ import { Vector3 } from "../libs/math.gl.js";
 export const quadspline = Object.freeze({
 
     inSegment: function(spline, segmentI, t) {
-        if(segmentI < 0 || spline.segments.length === 0) {
+        if (segmentI < 0 || spline.segments.length === 0) {
             return spline.start.clone();
         }
-        if(segmentI >= spline.segments.length) {
+        if (segmentI >= spline.segments.length) {
             return spline.segments.at(-1).to.clone();
         }
         const start = segmentI === 0? spline.start 
@@ -27,8 +27,8 @@ export const quadspline = Object.freeze({
         const segPointDist = 1 / numSegPoints;
         const builtLen = spline.segments.length * numSegPoints;
         const builtSegments = new Array(builtLen);
-        for(let segI = 0; segI < spline.segments.length; segI += 1) {
-            for(let subSegI = 1; subSegI <= numSegPoints; subSegI += 1) {
+        for (let segI = 0; segI < spline.segments.length; segI += 1) {
+            for (let subSegI = 1; subSegI <= numSegPoints; subSegI += 1) {
                 const t = subSegI * segPointDist;
                 const p = quadspline.inSegment(spline, segI, t);
                 builtSegments[segI * numSegPoints + subSegI - 1] = p;
@@ -45,10 +45,10 @@ export const quadspline = Object.freeze({
 export const linspline = Object.freeze({
 
     inSegment: function(spline, segmentI, t) {
-        if(segmentI < 0 || spline.segments.length === 0) {
+        if (segmentI < 0 || spline.segments.length === 0) {
             return spline.start;
         }
-        if(segmentI >= spline.segments.length) {
+        if (segmentI >= spline.segments.length) {
             return spline.segments.at(-1);
         }
         const start = segmentI === 0? spline.start
@@ -71,9 +71,9 @@ export const linspline = Object.freeze({
     advancePoint: function(spline, point, dist) {
         let remDist = dist + point.dist;
         point.dist = 0.0;
-        while(point.segmentI < spline.segments.length) {
+        while (point.segmentI < spline.segments.length) {
             const segLen = linspline.segmentLength(spline, point.segmentI);
-            if(segLen > remDist) {
+            if (segLen > remDist) {
                 point.dist = remDist
                 return
             }

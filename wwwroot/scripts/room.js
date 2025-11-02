@@ -1,18 +1,7 @@
 
 let roomId = null;
 
-window.addEventListener("load", () => {
-    document.title = getLocalized("titlebar");
-    const params = new URLSearchParams(window.location.search);
-    roomId = params.get("id");
-    if(!roomId) {
-        return exitPage();
-    }
-    if(!localStorage.username) {
-        setTimeout(() => {
-            window.location.href = `/join?id=${roomId}`;
-        }, 100);
-    }
+function initInviteLink() {
     const copyInvLink = document.getElementById("copy-invite-link");
     copyInvLink.onclick = () => {
         const origin = window.location.origin;
@@ -26,11 +15,13 @@ window.addEventListener("load", () => {
             copyInvLink.disabled = false;
         }, 1000);
     };
-    connectWebsocket(roomId, localStorage.username);
+}
+
+function initChat() {
     const chatMessageInput = document.getElementById("chat-message-input");
     const chatMessageSend = document.getElementById("chat-message-send");
     const sendTextMessage = () => {
-        if(!socket) { return; }
+        if (!socket) { return; }
         socket.send(JSON.stringify({
             type: "chat_message",
             contents: chatMessageInput.value
@@ -39,9 +30,26 @@ window.addEventListener("load", () => {
     };
     chatMessageSend.onclick = sendTextMessage;
     chatMessageInput.addEventListener("keyup", e => {
-        if(e.key !== "Enter") { return; }
+        if (e.key !== "Enter") { return; }
         sendTextMessage();
     });
+}
+
+window.addEventListener("load", () => {
+    document.title = getLocalized("titlebar");
+    const params = new URLSearchParams(window.location.search);
+    roomId = params.get("id");
+    if (!roomId) {
+        return exitPage();
+    }
+    if (!localStorage.username) {
+        setTimeout(() => {
+            window.location.href = `/join?id=${roomId}`;
+        }, 100);
+    }
+    connectWebsocket(roomId, localStorage.username);
+    initInviteLink();
+    initChat();
 });
 
 let exitingPage = false;
@@ -66,9 +74,9 @@ function showWaiting() {
 function updateWaiting(players) {
     const playerList = document.getElementById("waiting-player-list");
     playerList.innerHTML = "";
-    for(const player of players) {
+    for (const player of players) {
         const name = document.createElement("span");
-        name.innerText = player.name;
+        name.innerText = filterProfanities(player.name);
         const isReady = document.createElement("span");
         isReady.classList.add(
             player.isReady? "player-status-ready" : "player-status-not-ready"
@@ -79,14 +87,14 @@ function updateWaiting(players) {
         const playerCont = document.createElement("div");
         playerCont.classList.add("player-info-container");
         playerCont.appendChild(name);
-        if(player.id === roomOwnerId) {
+        if (player.id === roomOwnerId) {
             const isOwner = document.createElement("img");
             isOwner.classList.add("player-status-room-owner");
             isOwner.src = "res/settings-gear.svg";
             playerCont.appendChild(isOwner);
         }
         playerCont.appendChild(isReady);
-        if(playerId === roomOwnerId) {
+        if (playerId === roomOwnerId) {
             const kickPlayer = document.createElement("button");
             kickPlayer.classList.add("player-kick-button");
             kickPlayer.onclick = () => {
@@ -96,7 +104,7 @@ function updateWaiting(players) {
                 }));
             }
             kickPlayer.disabled = player.id === playerId;
-            if(player.id !== playerId) {
+            if (player.id !== playerId) {
                 const brightIcon = document.createElement("img");
                 brightIcon.classList.add("button-icon");
                 brightIcon.src = "res/power-off-bright.svg";
@@ -115,7 +123,7 @@ function updateWaiting(players) {
         playerList.appendChild(playerCont);
     }
     isReady = isReady && !roomIsPlaying;
-    if(roomIsPlaying) { isReady = false; }
+    if (roomIsPlaying) { isReady = false; }
     const getReady = document.getElementById("get-ready");
     getReady.disabled = isReady;
     getReady.onclick = () => {
@@ -170,7 +178,7 @@ let settings = {
 };
 
 function updateSettings() {
-    for(const settingName of Object.keys(SETTING_PROPERTIES)) {
+    for (const settingName of Object.keys(SETTING_PROPERTIES)) {
         const settingProps = SETTING_PROPERTIES[settingName];
         const button = document.getElementById(settingProps.buttonId);
         const valueIdx = settingProps.values.indexOf(settings[settingName]);
@@ -182,7 +190,7 @@ function updateSettings() {
         button.disabled = playerId !== roomOwnerId;
         button.onclick = () => {
             settings[settingName] = settingProps.values[nextValueIdx];
-            if(socket) {
+            if (socket) {
                 socket.send(JSON.stringify({
                     type: "configure_room",
                     newSettings: settings
@@ -222,7 +230,7 @@ function connectWebsocket(roomId, username) {
         onSocketEvent(event);
     });
     socket.addEventListener("close", () => {
-        if(crashed || exitingPage) { return; }
+        if (crashed || exitingPage) { return; }
         crashed = true;
         document.getElementById("client-disconnect-overlay")
             .style.display = "block";
@@ -233,7 +241,7 @@ let playerId;
 let roomOwnerId;
 
 function onSocketEvent(event) {
-    switch(event.type) {
+    switch (event.type) {
         case "invalid_message": {
             console.error(`Server reported invalid message: ${event.reason}`);
             break;
@@ -246,9 +254,9 @@ function onSocketEvent(event) {
             roomOwnerId = event.owner;
             settings = event.settings;
             const playing = event.state === "playing";
-            if(!playing && roomIsPlaying) {
+            if (!playing && roomIsPlaying) {
                 showWaiting();
-            } else if(playing && !roomIsPlaying) {
+            } else if (playing && !roomIsPlaying) {
                 isPlaying = roomIsPlaying === false;
                 showPlaying();
             }
@@ -265,11 +273,11 @@ function onSocketEvent(event) {
         }
         case "chat_message": {
             const chatLog = document.getElementById("chat-message-list");
-            chatLog.innerText += `${event.senderName}: ${event.contents}`;
+            chatLog.innerText += `${filterProfanities(event.senderName)}: ${filterProfanities(event.contents)}`;
             chatLog.appendChild(document.createElement("br"));
             chatLog.scrollTop = chatLog.scrollHeight;
             const chatLogNodes = chatLog.childNodes;
-            while(chatLogNodes.length > 256 * 2) {
+            while (chatLogNodes.length > 256 * 2) {
                 chatLog.removeChild(chatLogNodes[0]);
             }
             break;

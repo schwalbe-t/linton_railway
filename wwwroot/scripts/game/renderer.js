@@ -126,9 +126,9 @@ export class Renderer {
 
     renderInstanced(instances, shader, f) {
         const s = this.shaderOverride || shader || this.defaultShader;
-        if(!s) { throw new Error("No shader specified"); }
+        if (!s) { throw new Error("No shader specified"); }
         const remaining = [...instances];
-        while(remaining.length > 0) {
+        while (remaining.length > 0) {
             const batch = remaining.splice(0, Renderer.MAX_INSTANCE_COUNT);
             s.setUniform(Renderer.MODEL_TRANSFS_UNIFORM, batch);
             f(s, batch.length);

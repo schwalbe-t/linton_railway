@@ -42,10 +42,10 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
                 message, JsonSettings.Settings
             ) ?? throw new JsonSerializationException("InEvent is null");
         }
-        catch (JsonSerializationException ex)
+        catch (JsonSerializationException)
         {
             socket.SendJson(new OutEvent.InvalidMessage(
-                $"Failed to parse event message: {ex.Message}"
+                OutEvent.InvalidMessage.ErrorReason.MessageParsingFailed
             ));
             return;
         }
@@ -68,7 +68,7 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
         if (inEvent is not InEvent.JoinRoom joinRoom)
         {
             socket.SendJson(new OutEvent.InvalidMessage(
-                "Client must send 'join_room'-event before using other events"
+                OutEvent.InvalidMessage.ErrorReason.ClientNotInRoom
             ));
             socket.Close(WebSocketCloseStatus.PolicyViolation);
             return;
@@ -76,7 +76,7 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
         if (joinRoom.Name.Length > InEvent.JoinRoom.NameLengthLimit)
         {
             socket.SendJson(new OutEvent.InvalidMessage(
-                "Requested name inside of room is too long"
+                OutEvent.InvalidMessage.ErrorReason.UsernameTooLong
             ));
             socket.Close(WebSocketCloseStatus.PolicyViolation);
             return;
@@ -85,7 +85,7 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
         if (foundRoom is not Room room)
         {
             socket.SendJson(new OutEvent.InvalidMessage(
-                "The requested room does not exist"
+                OutEvent.InvalidMessage.ErrorReason.RoomDoesNotExist
             ));
             socket.Close(WebSocketCloseStatus.PolicyViolation);
             return;
@@ -93,7 +93,7 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
         if (room.Connected.Count >= Room.MaxNumConnections)
         {
             socket.SendJson(new OutEvent.InvalidMessage(
-                "The requested room is full"
+                OutEvent.InvalidMessage.ErrorReason.RoomIsFull
             ));
             socket.Close(WebSocketCloseStatus.PolicyViolation);
             return;
@@ -102,7 +102,7 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
             // connection may fail if the room has been closed since the time
             // we looked it up in the rooms index
             socket.SendJson(new OutEvent.InvalidMessage(
-                "The requested room does not exist"
+                OutEvent.InvalidMessage.ErrorReason.RoomDoesNotExist
             ));
             socket.Close(WebSocketCloseStatus.PolicyViolation);
             return;
@@ -124,7 +124,7 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
         {
             case InEvent.JoinRoom:
                 socket.SendJson(new OutEvent.InvalidMessage(
-                    "This client has already joined a room"
+                    OutEvent.InvalidMessage.ErrorReason.ClientAlreadyInRoom
                 ));
                 socket.Close(WebSocketCloseStatus.PolicyViolation);
                 return;
@@ -138,7 +138,7 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
                 if (message.Contents.Length > InEvent.ChatMessage.LengthLimit)
                 {
                     socket.SendJson(new OutEvent.InvalidMessage(
-                        "Chat message is too long"
+                        OutEvent.InvalidMessage.ErrorReason.ChatMessageTooLong
                     ));
                     return;
                 }
@@ -147,7 +147,7 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
                     ?.Name;
                 if (foundSender is not string senderName) { return; }
                 room.BroadcastEvent(new OutEvent.ChatMessage(
-                    senderName, message.Contents
+                    senderName, SenderId: socket.Id, message.Contents
                 ));
                 return;
         }
@@ -155,7 +155,7 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
         if (room.Owner != socket.Id)
         {
             socket.SendJson(new OutEvent.InvalidMessage(
-                "This client is not the current owner of the room"
+                OutEvent.InvalidMessage.ErrorReason.ClientNotRoomOwner
             ));
             return;
         }

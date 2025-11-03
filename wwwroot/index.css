@@ -26,6 +26,7 @@
 }
 #room-create-error {
     margin-top: 0.5rem;
+    height: 0px;
     color: var(--red);
 }
 

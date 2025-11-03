@@ -10,6 +10,8 @@
     --bright-white: #ebebeb;
     --red: #d95763;
     --green: #6abe30;
+    --blue: #5b6ee1;
+    --aqua: #5fcde4;
 
     --bg-back: var(--dark-gray);
     --bg-mid: var(--mid-gray);
@@ -52,15 +54,6 @@ button {
     cursor: pointer;
     font-weight: 500;
 }
-.button-small {
-    font-size: 0.75rem;
-    padding: 0.5rem;
-}
-.button-big {
-    font-size: 1.25rem;
-    padding: 1rem;
-    border-radius: 0.4rem;
-}
 button > .button-icon-hover,
 button:hover > .button-icon {
     display: none;
@@ -93,6 +86,11 @@ button:disabled:hover {
 button, input {
     margin-top: 0.5rem;
 }
+.input-big {
+    font-size: 1.25rem;
+    padding: 1rem;
+    border-radius: 0.4rem;
+}
 
-a { color: #5b6ee1; }
-a:hover { color: #5fcde4; }
+a { color: var(--blue); }
+a:hover { color: var(--aqua); }

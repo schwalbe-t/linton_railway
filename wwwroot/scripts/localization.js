@@ -64,9 +64,33 @@ const LOCALIZATION = Object.freeze({
         "bg": null
     },
 
+    "unknownRoomTitle": {
+        "en": "Room Closed :(",
+        "de": "Raum Geschlossen :(",
+        "bg": null
+    },
+    "unknownRoomDescription": {
+        "en": `The room you attempted to join no longer exists.
+ Please create or join another room.`,
+        "de": `Dieser Raum existiert nicht mehr.
+ Bitte erstelle oder trete einem anderen Raum bei.`,
+        "bg": null
+    },
+    "roomFullTitle": {
+        "en": "Room Full :(",
+        "de": "Raum Voll :(",
+        "bg": null
+    },
+    "roomFullDescription": {
+        "en": `The room you attempted to join is full.
+ Please try again later or join another room.`,
+        "de": `Dieser Raum ist voll. Bitte versuche es später erneut oder
+ trete einem anderem Raum bei.`,
+        "bg": null
+    },
     "roomCrashedTitle": {
-        "en": "Whoops! The Room Crashed :(",
-        "de": "Ups! Der Raum ist Abgestürzt :(",
+        "en": "The Room Crashed :(",
+        "de": "Der Raum ist Abgestürzt :(",
         "bg": null
     },
     "roomCrashDescription": {
@@ -75,21 +99,23 @@ const LOCALIZATION = Object.freeze({
  you could file an issue
  <a href="https://github.com/schwalbe-t/linton_railway/issues">on the Linton Railway Github</a>
  describing what happened prior to the crash occuring.`,
-        "de": `In Ihrem Raum ist ein kritischer Fehler aufgetreten und er musste
- geschlossen werden. Da dies nicht normal ist wären wir Ihnen sehr dankbar, wenn Sie
+        "de": `In deinem Raum ist ein kritischer Fehler aufgetreten und er musste
+ geschlossen werden. Da dies nicht normal ist wären wir dir sehr dankbar, wenn du
  das Problem 
  <a href="https://github.com/schwalbe-t/linton_railway/issues">im Linton Railway Github</a>
- melden könnten und beschreiben würden, was vor dem Absturz passiert ist.`,
+ melden könntest und beschreiben würdest, was vor dem Absturz passiert ist.`,
         "bg": null
     },
     "clientDisconnectedTitle": {
-        "en": "Whoops! You were disconnected :(",
-        "de": "Ups! Verbindung getrennt :(",
+        "en": "You were disconnected :(",
+        "de": "Verbindung getrennt :(",
         "bg": null,
     },
     "clientDisconnectedDescription": {
-        "en": "Your connection to the game room was unexpectedly closed.",
-        "de": "Die Verbindung zum Spielraum wurde unerwartet getrennt.",
+        "en": `Your connection to the game room was unexpectedly closed.
+ <b>You should be automatically reconnected in a few seconds.</b>`,
+        "de": `Die Verbindung zum Spielraum wurde unerwartet getrennt.
+ <b>Du solltest nach einigen Sekunden automatisch erneut verbunden werden.</b>`,
         "bg": null
     },
     "roomErrorBackToStart": {
@@ -199,6 +225,11 @@ const LOCALIZATION = Object.freeze({
         "en": "Send",
         "de": "Senden",
         "bg": null
+    },
+    "chatDisclaimer": {
+        "en": "Please keep the chat respectful and fun for everyone.",
+        "de": "Bitte halte den Chat für alle respektvoll und unterhaltsam.",
+        "bg": null  
     }
 
 });

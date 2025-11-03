@@ -1,5 +1,5 @@
 
-.room-error-overlay {
+#room-error-overlay {
     position: absolute;
     top: 0px;
     left: 0px;
@@ -7,7 +7,7 @@
     height: 100vh;
     backdrop-filter: blur(0.2rem);
 }
-.room-error-message {
+#room-error-message {
     position: absolute;
     top: 50vh;
     left: 50vw;
@@ -112,8 +112,14 @@
     background: var(--bg-mid);
     text-wrap: nowrap;
 }
-#chat-container > input {
-    width: 20.75rem;
+#chat-controls {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+#chat-controls > input {
+    flex-grow: 1;
+    margin-right: 0.5rem;
 }
 #chat-message-list {
     width: 100%;
@@ -121,6 +127,22 @@
     overflow-y: auto;
     text-wrap: wrap;
     overflow-wrap: break-word;
+}
+.chat-message-name {
+    font-weight: bold;
+}
+.chat-message-content {
+    margin-left: 0.75rem;
+}
+.chat-message-owner {
+    color: var(--bg-front);
+    height: 1rem;
+    margin-left: 0.25rem;
+    transform: translate(0px, 0.1rem);
+}
+#chat-message-disclaimer {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
 }
 
 #game-canvas {

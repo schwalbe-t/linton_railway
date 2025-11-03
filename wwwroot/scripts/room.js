@@ -1,5 +1,17 @@
 
-let roomId = null;
+function showRoomError(errorTypeBaseId) {
+    document.getElementById("room-error-overlay")
+        .style.display = "block";
+    document.getElementById("room-error-title")
+        .innerHTML = getLocalized(errorTypeBaseId + "Title");
+    document.getElementById("room-error-description")
+        .innerHTML = getLocalized(errorTypeBaseId + "Description");
+}
+
+function hideRoomError() {
+    document.getElementById("room-error-overlay")
+        .style.display = "none";
+}
 
 function initInviteLink() {
     const copyInvLink = document.getElementById("copy-invite-link");
@@ -22,9 +34,11 @@ function initChat() {
     const chatMessageSend = document.getElementById("chat-message-send");
     const sendTextMessage = () => {
         if (!socket) { return; }
+        const sent = chatMessageInput.value.trim();
+        if (sent.length === 0) { return; }
         socket.send(JSON.stringify({
             type: "chat_message",
-            contents: chatMessageInput.value
+            contents: sent
         }));
         chatMessageInput.value = "";
     };
@@ -34,6 +48,8 @@ function initChat() {
         sendTextMessage();
     });
 }
+
+let roomId = null;
 
 window.addEventListener("load", () => {
     document.title = getLocalized("titlebar");
@@ -94,32 +110,6 @@ function updateWaiting(players) {
             playerCont.appendChild(isOwner);
         }
         playerCont.appendChild(isReady);
-        if (playerId === roomOwnerId) {
-            const kickPlayer = document.createElement("button");
-            kickPlayer.classList.add("player-kick-button");
-            kickPlayer.onclick = () => {
-                socket.send(JSON.stringify({
-                    type: "kick_player",
-                    kickedId: player.id
-                }));
-            }
-            kickPlayer.disabled = player.id === playerId;
-            if (player.id !== playerId) {
-                const brightIcon = document.createElement("img");
-                brightIcon.classList.add("button-icon");
-                brightIcon.src = "res/power-off-bright.svg";
-                kickPlayer.appendChild(brightIcon);
-                const darkIcon = document.createElement("img");
-                darkIcon.classList.add("button-icon-hover");
-                darkIcon.src = "res/power-off-dark.svg";
-                kickPlayer.appendChild(darkIcon);
-            } else {
-                const disabledIcon = document.createElement("img");
-                disabledIcon.src = "res/power-off-disabled.svg";
-                kickPlayer.appendChild(disabledIcon);
-            }
-            playerCont.appendChild(kickPlayer);
-        }
         playerList.appendChild(playerCont);
     }
     isReady = isReady && !roomIsPlaying;
@@ -232,8 +222,7 @@ function connectWebsocket(roomId, username) {
     socket.addEventListener("close", () => {
         if (crashed || exitingPage) { return; }
         crashed = true;
-        document.getElementById("client-disconnect-overlay")
-            .style.display = "block";
+        showRoomError("clientDisconnected");
     });
 }
 
@@ -243,7 +232,32 @@ let roomOwnerId;
 function onSocketEvent(event) {
     switch (event.type) {
         case "invalid_message": {
-            console.error(`Server reported invalid message: ${event.reason}`);
+            switch(event.reason) {
+                // critical errors in client side logic
+                case "message_parsing_failed":
+                case "client_not_in_room":
+                case "client_already_in_room":
+                    console.error(
+                        `Server reported message error '${event.reason}'`
+                    );
+                    break;
+                // non-critical errors for things that should already
+                // be enforced by the client
+                case "client_not_room_owner":
+                case "username_too_long":
+                case "chat_message_too_long":
+                    break;
+                // common issues that need actual handling
+                case "room_does_not_exist":
+                    crashed = true;
+                    showRoomError("unknownRoom");
+                    break;
+                case "room_is_full":
+                    crashed = true;
+                    showRoomError("roomFull");
+                    break;
+            }
+            console.error(event);
             break;
         }
         case "identification": {
@@ -267,13 +281,25 @@ function onSocketEvent(event) {
         }
         case "room_crashed": {
             crashed = true;
-            document.getElementById("room-crashed-overlay")
-                .style.display = "block";
+            showRoomError("roomCrash");
             break;
         }
         case "chat_message": {
             const chatLog = document.getElementById("chat-message-list");
-            chatLog.innerText += `${filterProfanities(event.senderName)}: ${filterProfanities(event.contents)}`;
+            const messageName = document.createElement("span");
+            messageName.classList.add("chat-message-name");
+            messageName.innerText = filterProfanities(event.senderName);
+            chatLog.appendChild(messageName);
+            if (event.senderId === roomOwnerId) {
+                const isOwner = document.createElement("img");
+                isOwner.classList.add("chat-message-owner");
+                isOwner.src = "res/settings-gear.svg";
+                chatLog.appendChild(isOwner);
+            }
+            const messageContent = document.createElement("span");
+            messageContent.classList.add("chat-message-content");
+            messageContent.innerText = filterProfanities(event.contents);
+            chatLog.appendChild(messageContent);
             chatLog.appendChild(document.createElement("br"));
             chatLog.scrollTop = chatLog.scrollHeight;
             const chatLogNodes = chatLog.childNodes;

@@ -1,7 +1,8 @@
 
 using Linton.Game;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Converters;
+using System.Runtime.Serialization;
 
 namespace Linton.Server.Sockets;
 
@@ -22,10 +23,69 @@ public abstract record OutEvent
     /// </summary>
     /// <param name="Reason">why a previous message was invalid</param>
     public sealed record InvalidMessage(
-        [property: JsonProperty("reason")] string Reason
+        [property: JsonProperty("reason")] InvalidMessage.ErrorReason Reason
     ) : OutEvent
     {
         public override string TypeString => "invalid_message";
+
+        /// <summary>
+        /// Represents the reason for which a message may have been rejected.
+        /// </summary>
+        [JsonConverter(typeof(StringEnumConverter))]
+        public enum ErrorReason
+        {
+            /// <summary>
+            /// The plain text message was unable to be parsed into a valid
+            /// event object.
+            /// </summary>
+            [EnumMember(Value = "message_parsing_failed")]
+            MessageParsingFailed,
+            /// <summary>
+            /// Indicates that the client has not yet joined a room at the time
+            /// of receiving the message, which is not allowed for the type
+            /// of message received.
+            /// </summary>
+            [EnumMember(Value = "client_not_in_room")]
+            ClientNotInRoom,
+            /// <summary>
+            /// Indicates that the client has already joined a room at the time
+            /// of receiving the message, which is not allowed for the type
+            /// of message received.
+            /// </summary>
+            [EnumMember(Value = "client_already_in_room")]
+            ClientAlreadyInRoom,
+            /// <summary>
+            /// Indicates that the client was not the room owner at the time
+            /// of receiving the message, which is not allowed for the type of
+            /// message received.
+            /// </summary>
+            [EnumMember(Value = "client_not_room_owner")]
+            ClientNotRoomOwner,
+            /// <summary>
+            /// Indicates that a given room ID refers to a room that does not
+            /// currently exist.
+            /// </summary>
+            [EnumMember(Value = "room_does_not_exist")]
+            RoomDoesNotExist,
+            /// <summary>
+            /// Indicates that a given room was full and could not be connected
+            /// to at the time of receiving the message.
+            /// </summary>
+            [EnumMember(Value = "room_is_full")]
+            RoomIsFull,
+            /// <summary>
+            /// Indicates that the provided username exceeds the maximum length
+            /// limit for usernames.
+            /// </summary>
+            [EnumMember(Value = "username_too_long")]
+            UsernameTooLong,
+            /// <summary>
+            /// Indicates that the provided chat message contents exceed the
+            /// maximum length limit for chat messages.
+            /// </summary>
+            [EnumMember(Value = "chat_message_too_long")]
+            ChatMessageTooLong
+        }
     }
 
     /// <summary>
@@ -87,6 +147,7 @@ public abstract record OutEvent
     /// <param name="Contents">contents of the message</param>
     public sealed record ChatMessage(
         [property: JsonProperty("senderName")] string SenderName,
+        [property: JsonProperty("senderId")] Guid SenderId,
         [property: JsonProperty("contents")] string Contents
     ) : OutEvent
     {

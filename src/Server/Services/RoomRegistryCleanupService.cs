@@ -20,7 +20,7 @@ public sealed class RoomRegistryCleanupService(
         catch(Exception ex)
         {
             _logger.LogCritical(
-                ex, "Cleanup service encountered uncaught exception!"
+                ex, "Room cleanup service encountered uncaught exception!"
             );
         }
     }

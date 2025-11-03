@@ -134,12 +134,6 @@
 .chat-message-content {
     margin-left: 0.75rem;
 }
-.chat-message-owner {
-    color: var(--bg-front);
-    height: 1rem;
-    margin-left: 0.25rem;
-    transform: translate(0px, 0.1rem);
-}
 #chat-message-disclaimer {
     margin-top: 0.5rem;
     font-size: 0.8rem;

@@ -93,6 +93,7 @@ public abstract record OutEvent
     /// </summary>
     /// <param name="PlayerId">the client player ID</param>
     public sealed record Identification(
+        [property: JsonProperty("sessionId")] Guid SessionId,
         [property: JsonProperty("playerId")] Guid PlayerId
     ) : OutEvent
     {

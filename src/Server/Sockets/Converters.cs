@@ -22,7 +22,6 @@ public sealed class InEventConverter : JsonConverter
         {
             "join_room" => typeof(InEvent.JoinRoom),
             "is_ready" => typeof(InEvent.IsReady),
-            "kick_player" => typeof(InEvent.KickPlayer),
             "configure_room" => typeof(InEvent.ConfigureRoom),
             "chat_message" => typeof(InEvent.ChatMessage),
             _ => throw new JsonSerializationException(

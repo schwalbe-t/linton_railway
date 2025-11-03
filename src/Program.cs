@@ -22,6 +22,7 @@ builder.Services.AddControllers()
     .AddNewtonsoftJson();
 builder.Services.AddHostedService<RoomUpdateService>();
 builder.Services.AddHostedService<RoomRegistryCleanupService>();
+builder.Services.AddHostedService<SessionRegistryCleanupService>();
 
 var app = builder.Build();
 app.UseExceptionHandler("/");
@@ -70,7 +71,13 @@ app.UseWebSockets();
 var roomSocketController = new RoomSocketController(
     app.Services.GetRequiredService<ILogger<RoomSocketController>>()
 );
-app.Map("/ws/room", roomSocketController.TryCreateConnection);
+app.Map("/ws/room", async (HttpContext context, Guid? sessionId) =>
+{
+    await roomSocketController.TryCreateConnection(
+        context,
+        () => SessionRegistry.StartGetOrCreate(sessionId)
+    );
+});
 if (useForwardedHeaders)
 {
     app.UseForwardedHeaders();

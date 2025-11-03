@@ -12,19 +12,19 @@ namespace Linton.Server;
 /// </summary>
 /// <param name="logger">the logger</param>
 public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
-    : SocketController(logger)
+    : SocketController<Session>(logger)
 {
-
-    readonly ConcurrentDictionary<Guid, Room> _playerRooms = new();
-
+    
     /// <summary>
     /// Handles a new client connecting to the server.
     /// </summary>
     /// <param name="socket">the new connection</param>
-    public override void OnConnect(Socket socket)
+    /// <param name="session">the user session</param>
+    /// <returns>the new socket context</returns>
+    public override void OnConnect(Socket socket, Session session)
     {
         socket.SendJson(new OutEvent.Identification(
-            socket.Id
+            session.SessionId, session.PlayerId
         ));
     }
 
@@ -32,8 +32,10 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
     /// Handles a plain text message received from any room socket connection.
     /// </summary>
     /// <param name="socket">the socket the message came from</param>
+    /// <param name="session">the user session</param>
     /// <param name="message">the plain text contents</param>
-    public override void OnMessage(Socket socket, string message)
+    public override void OnMessage(
+        Socket socket, Session session, string message)
     {
         InEvent inEvent;
         try
@@ -49,12 +51,12 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
             ));
             return;
         }
-        if (_playerRooms.TryGetValue(socket.Id, out Room? room))
+        if (session.Room is Room room)
         {
-            OnRoomEvent(socket, inEvent, room);
+            OnRoomEvent(socket, session, inEvent, room);
             return;
         }
-        OnSeparatedEvent(socket, inEvent);
+        OnSeparatedEvent(socket, session, inEvent);
     }
 
     /// <summary>
@@ -62,8 +64,11 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
     /// be in any specific room.
     /// </summary>
     /// <param name="socket">the socket the event came from</param>
+    /// <param name="session">the user session</param>
     /// <param name="inEvent">the event</param>
-    void OnSeparatedEvent(Socket socket, InEvent inEvent)
+    static void OnSeparatedEvent(
+        Socket socket, Session session, InEvent inEvent
+    )
     {
         if (inEvent is not InEvent.JoinRoom joinRoom)
         {
@@ -98,7 +103,8 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
             socket.Close(WebSocketCloseStatus.PolicyViolation);
             return;
         }
-        if (!room.TryConnect(socket.Id, joinRoom.Name, socket)) {
+        if (!room.TryConnect(session.PlayerId, joinRoom.Name, socket))
+        {
             // connection may fail if the room has been closed since the time
             // we looked it up in the rooms index
             socket.SendJson(new OutEvent.InvalidMessage(
@@ -107,17 +113,20 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
             socket.Close(WebSocketCloseStatus.PolicyViolation);
             return;
         }
-        _playerRooms[socket.Id] = room;
+        session.Room = room;
     }
-    
+
     /// <summary>
     /// Handles an incoming event from a client that is currently connected
     /// to a specific room.
     /// </summary>
     /// <param name="socket">the socket the event came from</param>
+    /// <param name="session">the user session</param>
     /// <param name="inEvent">the event</param>
     /// <param name="room">the room the client is connected to</param>
-    static void OnRoomEvent(Socket socket, InEvent inEvent, Room room)
+    static void OnRoomEvent(
+        Socket socket, Session session, InEvent inEvent, Room room
+    )
     {
         // events that don't require client to be owner
         switch (inEvent)
@@ -128,10 +137,10 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
                 ));
                 socket.Close(WebSocketCloseStatus.PolicyViolation);
                 return;
-            
+
             case InEvent.IsReady:
                 if (room.State is not RoomState.Waiting waiting) { return; }
-                waiting.OnHasBecomeReady(room, socket.Id);
+                waiting.OnHasBecomeReady(room, session.PlayerId);
                 return;
 
             case InEvent.ChatMessage message:
@@ -143,16 +152,16 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
                     return;
                 }
                 string? foundSender = room.Connected
-                    .GetValueOrDefault(socket.Id)
+                    .GetValueOrDefault(session.PlayerId)
                     ?.Name;
                 if (foundSender is not string senderName) { return; }
                 room.BroadcastEvent(new OutEvent.ChatMessage(
-                    senderName, SenderId: socket.Id, message.Contents
+                    senderName, SenderId: session.PlayerId, message.Contents
                 ));
                 return;
         }
         // events that require client to be owner
-        if (room.Owner != socket.Id)
+        if (room.Owner != session.PlayerId)
         {
             socket.SendJson(new OutEvent.InvalidMessage(
                 OutEvent.InvalidMessage.ErrorReason.ClientNotRoomOwner
@@ -161,11 +170,6 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
         }
         switch (inEvent)
         {
-            case InEvent.KickPlayer kickPlayer:
-                room.Connected.GetValueOrDefault(kickPlayer.KickedId)
-                    ?.Socket?.Close();
-                return;
-            
             case InEvent.ConfigureRoom configureRoom:
                 room.Settings = configureRoom.NewSettings;
                 RoomRegistry.SetRoomPublic(room.Id, room.Settings.IsPublic);
@@ -177,10 +181,14 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
     /// Handles a client disconnecting.
     /// </summary>
     /// <param name="socket">The disconnecting connection to the client</param>
-    public override void OnDisconnect(Socket socket)
+    /// <param name="session">the user session</param>
+    public override void OnDisconnect(Socket socket, Session session)
     {
-        if (!_playerRooms.Remove(socket.Id, out Room? room)) { return; }
-        room.OnDisconnect(socket.Id);
+        if (session.Room is Room room)
+        {
+            room.OnDisconnect(session.PlayerId);
+        }
+        session.StopUsage();
     }
 
 }

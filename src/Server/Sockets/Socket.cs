@@ -17,11 +17,6 @@ public sealed class Socket(WebSocket connection)
 
     readonly SemaphoreSlim _sendLock = new(1, 1);
 
-    /// <summary>
-    /// Uniquely identifies this socket.
-    /// </summary>
-    public readonly Guid Id = Guid.NewGuid();
-
     internal async Task<string?> ReceiveTextAsync(
         CancellationToken cancelToken = default
     )

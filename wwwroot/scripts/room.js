@@ -196,12 +196,24 @@ function showPlaying() {
     document.getElementById("game-page").style.display = "block";
 }
 
+const SOCKET_ROUTE = "wss://localhost:8443/ws/room";
+const BASE_RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 16000;
+
 let socket;
+let reconnectDelayMs = BASE_RECONNECT_DELAY_MS;
 let crashed = false;
 
 function connectWebsocket(roomId, username) {
-    socket = new WebSocket("wss://localhost:8443/ws/room");
+    const url = new URL(SOCKET_ROUTE);
+    const sessionId = localStorage.sessionId;
+    if (sessionId) {
+        url.searchParams.append("sessionId", sessionId);
+    }
+    socket = new WebSocket(url.toString());
     socket.addEventListener("open", () => {
+        hideRoomError();
+        reconnectDelayMs = BASE_RECONNECT_DELAY_MS;
         socket.send(JSON.stringify({
             type: "join_room",
             roomId: roomId,
@@ -221,8 +233,13 @@ function connectWebsocket(roomId, username) {
     });
     socket.addEventListener("close", () => {
         if (crashed || exitingPage) { return; }
-        crashed = true;
         showRoomError("clientDisconnected");
+        setTimeout(() => {
+            reconnectDelayMs = Math.min(
+                reconnectDelayMs * 2, MAX_RECONNECT_DELAY_MS
+            );
+            connectWebsocket(roomId, username);
+        }, reconnectDelayMs);
     });
 }
 
@@ -257,11 +274,11 @@ function onSocketEvent(event) {
                     showRoomError("roomFull");
                     break;
             }
-            console.error(event);
             break;
         }
         case "identification": {
             playerId = event.playerId;
+            localStorage.sessionId = event.sessionId;
             break;
         }
         case "room_info": {
@@ -290,12 +307,6 @@ function onSocketEvent(event) {
             messageName.classList.add("chat-message-name");
             messageName.innerText = filterProfanities(event.senderName);
             chatLog.appendChild(messageName);
-            if (event.senderId === roomOwnerId) {
-                const isOwner = document.createElement("img");
-                isOwner.classList.add("chat-message-owner");
-                isOwner.src = "res/settings-gear.svg";
-                chatLog.appendChild(isOwner);
-            }
             const messageContent = document.createElement("span");
             messageContent.classList.add("chat-message-content");
             messageContent.innerText = filterProfanities(event.contents);

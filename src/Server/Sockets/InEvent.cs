@@ -33,16 +33,6 @@ public abstract record InEvent
     public sealed record IsReady : InEvent;
 
     /// <summary>
-    /// Used by clients to request disconnection of a player.
-    /// Player must be present in the same room as the sender of the event.
-    /// The sender of the event must be the owner of the room.
-    /// </summary>
-    /// <param name="KickedId">the ID of the player to disconnect</param>
-    public sealed record KickPlayer(
-        [property: JsonProperty("kickedId")] Guid KickedId
-    ) : InEvent;
-
-    /// <summary>
     /// Used by clients to change room sessions.
     /// Changes the settings of the room that the sender is connected to.
     /// The sender of the event must be the owner of the room.

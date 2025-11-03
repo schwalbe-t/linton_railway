@@ -70,6 +70,7 @@ function prepareJoin(roomId) {
         const username = usernameInp.value.trim();
         if(username.length === 0) { return; }
         localStorage.username = username;
+        localStorage.removeItem("sessionId");
         window.location.href = `/room?id=${roomId}`;
     };
 }

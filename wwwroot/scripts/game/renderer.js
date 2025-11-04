@@ -16,32 +16,38 @@ export class Renderer {
     static SUN_OFFSET = new Vector3(1.134, 1, -0.85).normalize().scale(200);
     static SUN_ORTHO_PROJ = {
         left: -200, right: 200,
-        bottom: -200, top: 200,
-        near: 10, far: 1000
+        bottom: -100, top: 100,
+        near: 10, far: 400
     };
-    static SHADOW_MAP_RES = 4096;
-    static DEPTH_BIAS = 0.05;
+    static SHADOW_MAP_RES = 2048;
+    static DEPTH_BIAS = 0.0005;
     static NORMAL_OFFSET = 0.01;
     static FOV_Y = 60;
     static NEAR_PLANE = 1;
     static FAR_PLANE = 1000;
     static CLEAR_COLOR = new Vector4(209, 193, 158, 255).scale(1/255);
     
-    static MAX_INSTANCE_COUNT = 64;
     static VIEW_PROJ_UNIFORM = "uViewProj";
     static LIGHT_PROJ_UNIFORM = "uLightProj";
     static SHADOW_MAP_UNIFORM = "uShadowMap";
     static SUN_DIR_UNIFORM = "uSunDirection";
     static DEPTH_BIAS_UNIFORM = "uDepthBias";
     static NORMAL_OFFSET_UNIFORM = "uNormalOffset";
-    static MODEL_TRANSFS_UNIFORM = "uModelTransfs";
+    static INSTANCES_UNIFORM = "uInstances";
     static TEXTURE_UNIFORM = "uTexture";
+    static TIME_UNIFORM = "uTime";
 
     static SHADOW_SHADER = null;
-    static async loadShadowShader() {
-        Renderer.SHADOW_SHADER = await Shader.loadGlsl(
+    static GEOMETRY_SHADER = null;
+    static async loadResources() {
+        const shadowShaderReq = Shader.loadGlsl(
             "/res/shaders/geometry.vert.glsl", "/res/shaders/shadows.frag.glsl"
         );
+        const geometryShaderReq = Shader.loadGlsl(
+            "/res/shaders/geometry.vert.glsl", "/res/shaders/geometry.frag.glsl"
+        );
+        Renderer.SHADOW_SHADER = await shadowShaderReq;
+        Renderer.GEOMETRY_SHADER = await geometryShaderReq;
     }
 
     constructor() {
@@ -55,8 +61,6 @@ export class Renderer {
             center: new Vector3(),
             up: new Vector3()
         };
-        this.shaderOverride = null;
-        this.defaultShader = null;
         this.target = null;
         this.lightProj = new Matrix4();
         this.viewProj = new Matrix4();
@@ -66,6 +70,7 @@ export class Renderer {
             TextureFormat.DEPTH16
         ));
         this.sunDirection = new Vector3();
+        this.time = 0.0;
     }
 
     updateSun() {
@@ -90,32 +95,31 @@ export class Renderer {
         this.viewProj = projection.multiplyRight(view);
     }
 
-    update(target) {
+    update(target, deltaTime = 0.0) {
         this.target = target;
+        this.time += deltaTime;
         this.updateSun();
         this.updateCamera(this.camera);
+        this.setShadowUniforms(Renderer.SHADOW_SHADER);
+        this.setGeometryUniforms(Renderer.GEOMETRY_SHADER);
     }
 
     shadowMapped(target, f) {
-        this.shaderOverride = Renderer.SHADOW_SHADER;
-        this.shaderOverride.setUniform(
-            Renderer.VIEW_PROJ_UNIFORM, this.lightProj
-        );
         this.target = this.shadowMap;
         this.target.clearDepth(1);
         f();
-        this.shaderOverride = null;
         this.target = target;
         this.target.clearColor(Renderer.CLEAR_COLOR);
         this.target.clearDepth(1);
         f();
     }
 
-    setUniforms(shader) {
+    setGeometryUniforms(shader) {
         shader.setUniform(Renderer.VIEW_PROJ_UNIFORM, this.viewProj);
         shader.setUniform(Renderer.LIGHT_PROJ_UNIFORM, this.lightProj);
         shader.setUniform(Renderer.SHADOW_MAP_UNIFORM, this.shadowMap.depth);
         shader.setUniform(Renderer.SUN_DIR_UNIFORM, this.sunDirection);
+        shader.setUniform(Renderer.TIME_UNIFORM, this.time);
         shader.setUniform(
             Renderer.DEPTH_BIAS_UNIFORM, Renderer.DEPTH_BIAS
         );
@@ -124,34 +128,54 @@ export class Renderer {
         );
     }
 
-    renderInstanced(instances, shader, f) {
-        const s = this.shaderOverride || shader || this.defaultShader;
-        if (!s) { throw new Error("No shader specified"); }
+    setShadowUniforms(shader) {
+        shader.setUniform(
+            Renderer.VIEW_PROJ_UNIFORM, this.lightProj
+        );
+    }
+
+    renderInstanced(instances, shadowShader, geometryShader, maxBatchSize, f) {
+        const s = this.target !== this.shadowMap
+            ? (geometryShader ? geometryShader : Renderer.GEOMETRY_SHADER)
+            : (shadowShader   ? shadowShader   : Renderer.SHADOW_SHADER  );
         const remaining = [...instances];
         while (remaining.length > 0) {
-            const batch = remaining.splice(0, Renderer.MAX_INSTANCE_COUNT);
-            s.setUniform(Renderer.MODEL_TRANSFS_UNIFORM, batch);
+            const batch = remaining.splice(0, maxBatchSize);
+            s.setUniform(Renderer.INSTANCES_UNIFORM, batch);
             f(s, batch.length);
         }
     }
 
-    renderModel(model, instances, shader, depthTesting = DepthTesting.ENABLED) {
-        this.renderInstanced(instances, shader, (s, batchLen) => {
-            model.render(
-                s, this.target, Renderer.TEXTURE_UNIFORM,
-                batchLen, depthTesting
-            );
-        });
+    renderModel(
+        model, instances,
+        shadowShader, geometryShader, 
+        depthTesting = DepthTesting.ENABLED,
+        maxBatchSize = 64
+    ) {
+        this.renderInstanced(
+            instances, shadowShader, geometryShader, maxBatchSize, 
+            (s, batchLen) => {
+                model.render(
+                    s, this.target, Renderer.TEXTURE_UNIFORM,
+                    batchLen, depthTesting
+                );
+            }
+        );
     }
 
     renderGeometry(
-        geometry, texture, instances, 
-        shader, depthTesting = DepthTesting.ENABLED
+        geometry, texture, instances,
+        shadowShader, geometryShader, 
+        depthTesting = DepthTesting.ENABLED,
+        maxBatchSize = 64
     ) {
-        this.renderInstanced(instances, shader, (s, batchLen) => {
-            s.setUniform(Renderer.TEXTURE_UNIFORM, texture);
-            geometry.render(s, this.target, batchLen, depthTesting);
-        });
+        this.renderInstanced(
+            instances, shadowShader, geometryShader, maxBatchSize, 
+            (s, batchLen) => {
+                s.setUniform(Renderer.TEXTURE_UNIFORM, texture);
+                geometry.render(s, this.target, batchLen, depthTesting);
+            }
+        );
     }
 
 }

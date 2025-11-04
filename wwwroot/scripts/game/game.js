@@ -9,32 +9,12 @@ import { Renderer } from "./renderer.js";
 import * as resources from "./resources.js";
 import * as gameloop from "./gameloop.js";
 import { Terrain } from "./terrain.js";
+import * as camera from "./camera.js";
+import { resetInput } from "./input.js";
 
 const RESOURCES = resources.load({
-    rendererShadowShader: Renderer.loadShadowShader(),
+    rendererResources: Renderer.loadResources(),
     terrainResources: Terrain.loadResources(),
-
-    shader: Shader.loadGlsl(
-        "/res/shaders/geometry.vert.glsl", "/res/shaders/geometry.frag.glsl"
-    ),
-    carriageShader: Shader.loadGlsl(
-        "/res/shaders/geometry.vert.glsl", "/res/shaders/carriage.frag.glsl"
-    ),
-    carriage: Model.loadMeshes(Renderer.OBJ_LAYOUT, [
-        { tex: "/res/models/carriage.png", obj: "/res/models/carriage.obj" }
-    ]),
-    locoDiesel: Model.loadMeshes(Renderer.OBJ_LAYOUT, [
-        { tex: "/res/models/loco_diesel.png", obj: "/res/models/loco_diesel.obj" }
-    ]),
-    locoSteam: Model.loadMeshes(Renderer.OBJ_LAYOUT, [
-        { tex: "/res/models/loco_steam.png", obj: "/res/models/loco_steam.obj" }
-    ]),
-    tree: Model.loadMeshes(Renderer.OBJ_LAYOUT, [
-        { 
-            tex: "/res/models/tree.png", obj: "/res/models/tree.obj",
-            texFormat: TextureFormat.RGBA8, texFilter: TextureFilter.LINEAR
-        }
-    ])
 });
 
 window.addEventListener("load", () => {
@@ -47,13 +27,9 @@ window.addEventListener("load", () => {
 
 let renderer = null;
 let terrain = null;
-let angle = 0.0;
 
 function init() {
     renderer = new Renderer();
-    renderer.camera.eye.set(500, 400, 500+250);
-    renderer.camera.center.set(0, 0, 500);
-    renderer.defaultShader = RESOURCES.shader;
 }
 
 function onUpdateTerrain(details) {
@@ -61,22 +37,20 @@ function onUpdateTerrain(details) {
         terrain.delete();
     }
     terrain = new Terrain(details);
+    camera.init();
 }
 window.onUpdateTerrain = onUpdateTerrain;
 
 gameloop.onFrame(deltaTime => {
-    angle += deltaTime;
-    updateGraphics();
-    Renderer.SUN_OFFSET
-        .set(Math.cos(angle), 1, Math.sin(angle))
-        .normalize().scale(200);
-    renderer.update(defaultFramebuffer);
-    renderer.setUniforms(RESOURCES.shader);
-    renderer.setUniforms(RESOURCES.carriageShader);
-    renderer.shadowMapped(defaultFramebuffer, () => {
-        if (terrain !== null) {
-            renderer.camera.center.x += deltaTime * 50;
+    console.log(1.0 / deltaTime);
+    if (terrain !== null) {
+        camera.update(deltaTime);
+        updateGraphics();
+        camera.configureRenderer(renderer);
+        renderer.update(defaultFramebuffer, deltaTime);
+        renderer.shadowMapped(defaultFramebuffer, () => {
             terrain.render(renderer);
-        }
-    });
+        });
+    }
+    resetInput();
 });

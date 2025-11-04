@@ -8,8 +8,8 @@ namespace Linton.Game;
 
 public static class TerrainUnits
 {
-    public const int UnitsPerTile = 10;
-    public const int TilesPerChunk = 10;
+    public const int UnitsPerTile = 5;
+    public const int TilesPerChunk = 32;
     public const int UnitsPerChunk = UnitsPerTile * TilesPerChunk;
 
     public static int UnitsToTiles(this int u) => u / UnitsPerTile;
@@ -35,6 +35,27 @@ public static class TerrainUnits
 /// </summary>
 public sealed class Terrain
 {
+
+    /// <summary>
+    /// Represents the peak of a mountain in the terrain.
+    /// </summary>
+    /// <param name="TileX">the X tile coordinate of the peak</param>
+    /// <param name="TileZ">the Z tile coordinate of the peak</param>
+    /// <param name="Height">the height of the peak in units</param>
+    public sealed record Mountain(
+        [property: JsonProperty("tileX")] int TileX,
+        [property: JsonProperty("tileZ")] int TileZ,
+        [property: JsonProperty("height")] float Height
+    )
+    {
+        public const float MinHeight = 25.0f;
+        public const float MaxHeight = 35.0f;
+        public const float HeightRange = MaxHeight - MinHeight;
+
+        public const float MinChance = 0.2f;
+        public const float MaxChance = 0.75f;
+        public const float ChanceRange = MaxChance - MinChance;
+    }
 
     /// <summary>
     /// The base size (width and height) of the terrain.
@@ -65,6 +86,9 @@ public sealed class Terrain
     [JsonProperty("rivers")]
     public readonly List<QuadSpline> Rivers;
 
+    [JsonProperty("mountains")]
+    public readonly List<Mountain> Mountains;
+
     public Terrain(int playerCount, ushort seed, Random rng)
     {
         Seed = seed;
@@ -73,17 +97,16 @@ public sealed class Terrain
         SizeT = SizeC.ChunksToTiles();
         SizeU = SizeT.TilesToUnits();
         int numRivers = (int)(SizeC * RiversPerChunkSize);
-        Rivers = GenerateRivers(numRivers, rng);
-    }
-
-    List<QuadSpline> GenerateRivers(int numRivers, Random rng)
-    {
         var noise = new FastNoise();
         noise.SetSeed(Seed);
-        return Enumerable.Range(0, numRivers)
+        Rivers = GenerateRivers(numRivers, rng, noise);
+        Mountains = GenerateMountains(rng, noise);
+    }
+
+    List<QuadSpline> GenerateRivers(int numRivers, Random rng, FastNoise noise)
+        => Enumerable.Range(0, numRivers)
             .Select(_ => GenerateRiver(rng, noise))
             .ToList();
-    }
 
     const float RiverDCPerlinScale = 1234f;
     const float RiverDVPerlinScale = 5432f;
@@ -93,7 +116,7 @@ public sealed class Terrain
     QuadSpline GenerateRiver(Random rng, FastNoise noise)
     {
         bool alongX = rng.Next(2) == 0;
-        int tileX =  alongX ? 0 : rng.Next(SizeT);
+        int tileX = alongX ? 0 : rng.Next(SizeT);
         int tileZ = !alongX ? 0 : rng.Next(SizeT);
         Vector3 start = new(tileX.TilesToUnits(), 0, tileZ.TilesToUnits());
         List<QuadSpline.Segment> segments = new();
@@ -141,5 +164,36 @@ public sealed class Terrain
         }
         return new QuadSpline(start, segments);
     }
-    
+
+    const float PeakCPerlinScale = 143.4f;
+    const float PeakHPerlinScale = 3.14f;
+
+    List<Mountain> GenerateMountains(Random rng, FastNoise noise)
+    {
+        var mountains = new List<Mountain>();
+        for (int chunkX = 0; chunkX < SizeC; chunkX += 1)
+        {
+            for (int chunkZ = 0; chunkZ < SizeC; chunkZ += 1)
+            {
+                float cn = noise.GetPerlin(
+                    chunkX * PeakCPerlinScale, chunkZ * PeakCPerlinScale
+                );
+                float spawnChance = (cn + 1f) / 2f * Mountain.ChanceRange
+                    + Mountain.MinChance;
+                bool createMountain = rng.NextSingle() < spawnChance;
+                if (!createMountain) { continue; }
+                int rTileX = rng.Next(1.ChunksToTiles());
+                int rTileZ = rng.Next(1.ChunksToTiles());
+                int tileX = chunkX.ChunksToTiles() + rTileX;
+                int tileZ = chunkZ.ChunksToTiles() + rTileZ;
+                float hn = noise.GetPerlin(
+                    chunkX * PeakHPerlinScale, chunkZ * PeakHPerlinScale
+                );
+                float height = hn * Mountain.HeightRange + Mountain.MinHeight;
+                mountains.Add(new Mountain(tileX, tileZ, height));
+            }
+        }
+        return mountains;
+    }
+
 }

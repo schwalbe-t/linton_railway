@@ -158,6 +158,7 @@ export class Shader {
     }
     
     setUniform(name, value) {
+        if (value === null || value === undefined) { return; }
         this.partBind();
         let loc = this.uniforms[name];
         if (loc === undefined) {

@@ -41,7 +41,7 @@ public class GameInstance
     {
         lock (_lock)
         {
-            if (_playing.Count == 0)
+            if (!_playing.Values.Any(p => p.IsConnected))
             {
                 _hasEnded = true;
             }
@@ -50,14 +50,17 @@ public class GameInstance
 
     /// <summary>
     /// Signals to the game instance that the given player has disconnected
-    /// and will no longer be participating.
+    /// or reconnected. If the player has not been a participant since the
+    /// start of the game, this method has no effect.
     /// </summary>
-    /// <param name="playerId">the ID of the player</param>
-    public void OnDisconnect(Guid playerId)
+    /// <param name="pid">the ID of the player</param>
+    /// <param name="isConnected">whether the player is now connected</param>
+    public void OnPlayerConnectionChange(Guid pid, bool isConnected)
     {
         lock (_lock)
         {
-            _playing.Remove(playerId);
+            if (_playing.GetValueOrDefault(pid) is not Player p) { return; }
+            p.IsConnected = isConnected;
         }
     }
 

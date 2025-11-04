@@ -320,7 +320,7 @@ function onSocketEvent(event) {
             break;
         }
         case "terrain_info": {
-            console.log(event);
+            onUpdateTerrain(event.terrain);
             break;
         }
     }

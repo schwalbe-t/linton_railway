@@ -74,14 +74,15 @@ export const linspline = Object.freeze({
         while (point.segmentI < spline.segments.length) {
             const segLen = linspline.segmentLength(spline, point.segmentI);
             if (segLen > remDist) {
-                point.dist = remDist
-                return
+                point.dist = remDist;
+                return true;
             }
             remDist -= segLen;
             point.segmentI += 1;
         }
         point.segmentI = spline.segments.length - 1;
         point.dist = linspline.segmentLength(spline, point.segmentI);
+        return false;
     },
 
     atPoint: function(spline, point) {

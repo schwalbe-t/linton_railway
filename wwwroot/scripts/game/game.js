@@ -52,13 +52,17 @@ let angle = 0.0;
 function init() {
     renderer = new Renderer();
     renderer.camera.eye.set(500, 400, 500+250);
-    renderer.camera.center.set(500, 0, 500);
+    renderer.camera.center.set(0, 0, 500);
     renderer.defaultShader = RESOURCES.shader;
-    terrain = new Terrain({
-        sizeChunks: 10,
-        seed: Math.floor(Math.random() * 65536)
-    });
 }
+
+function onUpdateTerrain(details) {
+    if (terrain !== null) {
+        terrain.delete();
+    }
+    terrain = new Terrain(details);
+}
+window.onUpdateTerrain = onUpdateTerrain;
 
 gameloop.onFrame(deltaTime => {
     angle += deltaTime;
@@ -70,6 +74,9 @@ gameloop.onFrame(deltaTime => {
     renderer.setUniforms(RESOURCES.shader);
     renderer.setUniforms(RESOURCES.carriageShader);
     renderer.shadowMapped(defaultFramebuffer, () => {
-        terrain.render(renderer);
+        if (terrain !== null) {
+            renderer.camera.center.x += deltaTime * 50;
+            terrain.render(renderer);
+        }
     });
 });

@@ -85,7 +85,7 @@ public sealed record LinSpline(
     /// <param name="segmentI">the index of the segment</param>
     /// <param name="t">the progress along the segment</param>
     /// <returns>the point along the spline</returns>
-    Vector3 InSegment(int segmentI, float t)
+    public Vector3 InSegment(int segmentI, float t)
     {
         if (segmentI < 0 || Segments.Count == 0) { return Start; }
         if (segmentI >= Segments.Count) { return Segments.Last(); }
@@ -100,7 +100,7 @@ public sealed record LinSpline(
     /// </summary>
     /// <param name="segmentI">the index of the segment</param>
     /// <returns>the euclidian length of the segment</returns>
-    float SegmentLength(int segmentI)
+    public float SegmentLength(int segmentI)
     {
         Vector3 start = segmentI == 0 ? Start
             : Segments[segmentI - 1];
@@ -122,7 +122,8 @@ public sealed record LinSpline(
     /// </summary>
     /// <param name="point">the point along the spline</param>
     /// <param name="distance">the distance to advance the point by</param>
-    void AdvancePoint(Point point, float distance)
+    /// <returns>whether the point can be further advanced</returns>
+    public bool AdvancePoint(Point point, float distance)
     {
         float remDist = point.Distance + distance;
         point.Distance = 0f;
@@ -132,13 +133,14 @@ public sealed record LinSpline(
             if (segLen > remDist)
             {
                 point.Distance = remDist;
-                return;
+                return true;
             }
             remDist -= segLen;
             point.SegmentI += 1;
         }
         point.SegmentI = Segments.Count - 1;
         point.Distance = SegmentLength(point.SegmentI);
+        return false;
     }
 
     /// <summary>
@@ -147,7 +149,7 @@ public sealed record LinSpline(
     /// </summary>
     /// <param name="point">the point along the splint</param>
     /// <returns>the concrete point</returns>
-    Vector3 AtPoint(Point point)
+    public Vector3 AtPoint(Point point)
     {
         float t = point.Distance / SegmentLength(point.SegmentI);
         return InSegment(point.SegmentI, t);

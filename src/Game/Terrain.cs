@@ -85,7 +85,10 @@ public sealed class Terrain
             .ToList();
     }
 
-    const float RiverPerlinScale = 123.5f;
+    const float RiverDCPerlinScale = 1234f;
+    const float RiverDVPerlinScale = 5432f;
+    const float RiverTurnProbability = 0.4f;
+    const int RiverTurnRadius = 5;
 
     QuadSpline GenerateRiver(Random rng, FastNoise noise)
     {
@@ -98,16 +101,20 @@ public sealed class Terrain
         int dirZ = alongX ? 0 : 1;
         while (tileX >= 0 && tileX <= SizeT && tileZ >= 0 && tileZ <= SizeT)
         {
-            int ctrlX = tileX + dirX;
-            int ctrlZ = tileZ + dirZ;
             // n is between -1 and 1
-            float n = noise.GetPerlin(
-                tileX * RiverPerlinScale, tileZ * RiverPerlinScale
+            float dcn = noise.GetPerlin(
+                tileX * RiverDCPerlinScale, tileZ * RiverDCPerlinScale
             );
-            bool changeDir = n >= 0f;
+            bool changeDir = (dcn + 1f) / 2f <= RiverTurnProbability;
+            int ctrlDist = changeDir ? RiverTurnRadius : 1;
+            int ctrlX = tileX + dirX * ctrlDist;
+            int ctrlZ = tileZ + dirZ * ctrlDist;
             if (changeDir)
             {
-                int chosenDir = (Math.Abs(n) > 0.5f) ? 1 : -1;
+                float dvn = noise.GetPerlin(
+                    tileX * RiverDVPerlinScale, tileZ * RiverDVPerlinScale
+                );
+                int chosenDir = dvn > 0.0 ? 1 : -1;
                 bool oldDirX = dirX != 0;
                 bool oldDirZ = dirZ != 0;
                 if (alongX)
@@ -120,13 +127,13 @@ public sealed class Terrain
                     dirX = oldDirX ? 0 : chosenDir;
                     dirZ = oldDirX ? 1 : 0;
                 }
-                tileX = ctrlX + dirX;
-                tileZ = ctrlZ + dirZ;
+                tileX = ctrlX + dirX * ctrlDist;
+                tileZ = ctrlZ + dirZ * ctrlDist;
             }
             else
             {
-                tileX += dirX;
-                tileZ += dirZ;
+                tileX += dirX * ctrlDist;
+                tileZ += dirZ * ctrlDist;
             }
             Vector3 ctrl = new(ctrlX.TilesToUnits(), 0, ctrlZ.TilesToUnits());
             Vector3 to = new(tileX.TilesToUnits(), 0, tileZ.TilesToUnits());

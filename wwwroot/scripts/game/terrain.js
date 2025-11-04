@@ -1,6 +1,7 @@
 import { Matrix4, Vector3 } from "../libs/math.gl.js";
-import { Geometry, Texture } from "./graphics.js";
+import { Geometry, Texture, Shader } from "./graphics.js";
 import { Renderer } from "./renderer.js";
+import { quadspline, linspline } from "./spline.js";
 
 export const units = Object.freeze({
     toTiles:  u => u / Terrain.UNITS_PER_TILE,
@@ -20,6 +21,23 @@ export const chunks = Object.freeze({
 
 class ChunkElevation {
 
+    static RIVER_BASE_ELEV = -15.0;
+    static RIVER_DIST_ELEV = 20.0; // units per distance from river
+
+    static riverElevLimit(tileX, tileZ, details) {
+        let closestDist = Infinity;
+        for (const river of details.tesRivers) {
+            for (const seg of river.segments) {
+                const segTileX = units.toTiles(seg.x);
+                const segTileZ = units.toTiles(seg.z);
+                const segDist = Math.hypot(tileX - segTileX, tileZ - segTileZ);
+                closestDist = Math.min(closestDist, segDist);
+            }
+        }
+        return ChunkElevation.RIVER_BASE_ELEV
+            + closestDist * ChunkElevation.RIVER_DIST_ELEV;
+    }
+
     constructor(chunkX, chunkZ, details) {
         const chunkSizeTiles = chunks.toTiles(1);
         this.originTileX = chunks.toTiles(chunkX);
@@ -30,11 +48,14 @@ class ChunkElevation {
                 const tileX = this.originTileX + rTileX;
                 const tileZ = this.originTileZ + rTileZ;
                 const elev 
-                    = noise.perlin2(tileX / 3.14, tileZ / 3.14)
-                    + noise.perlin2(tileX / 12.5, tileZ / 12.5) * 10
-                    + noise.perlin2(tileX / 21, tileZ / 21) * 20
-                    + noise.perlin2(tileX / 67, tileZ / 67) * 200;
-                this.elevation[this.indexOfRel(rTileX, rTileZ)] = elev;
+                    = noise.perlin2(tileX * 1.35, tileZ * 1.35)
+                    + noise.perlin2(tileX / 3.14, tileZ / 3.14) * 2
+                    + noise.perlin2(tileX / 12.5, tileZ / 12.5) * 3
+                    + noise.perlin2(tileX / 21, tileZ / 21) * 5;
+                const riverElev
+                    = ChunkElevation.riverElevLimit(tileX, tileZ, details);
+                this.elevation[this.indexOfRel(rTileX, rTileZ)]
+                    = Math.min(elev, riverElev);
             }
         }
     }
@@ -62,7 +83,7 @@ export class TerrainChunk {
 
     static ROCK_MIN_DIFF_Y = 4;
 
-    buildTerrainMesh(details, elev) {
+    buildTerrainMesh(elev) {
         const vertData = [];
         const elemData = [];
         let nextVertIdx = 0;
@@ -150,11 +171,45 @@ export class TerrainChunk {
         ]) ];
     }
 
+    static WATER_HEIGHT = -5.0;
+
+    buildWaterMesh() {
+        const vertData = [
+            // [0] top left
+            chunks.toUnits(0), TerrainChunk.WATER_HEIGHT, chunks.toUnits(0),
+            0, 1, 0,
+            0, 1,
+            // [1] top right
+            chunks.toUnits(1), TerrainChunk.WATER_HEIGHT, chunks.toUnits(0),
+            0, 1, 0,
+            1, 1,
+            // [2] bottom left
+            chunks.toUnits(0), TerrainChunk.WATER_HEIGHT, chunks.toUnits(1),
+            0, 1, 0,
+            0, 0,
+            // [3] bottom right
+            chunks.toUnits(1), TerrainChunk.WATER_HEIGHT, chunks.toUnits(1),
+            0, 1, 0,
+            1, 0 
+        ];
+        const elemData = [
+            0, 2, 3,
+            0, 3, 1
+        ];
+        this.waterMesh = new Geometry(
+            Renderer.GEOMETRY_LAYOUT, vertData, elemData
+        );
+        this.waterMeshInstances = [ new Matrix4().translate([
+            chunks.toUnits(this.chunkX), 0, chunks.toUnits(this.chunkZ)
+        ]) ];
+    }
+
     constructor(chunkX, chunkZ, details) {
         this.chunkX = chunkX;
         this.chunkZ = chunkZ;
         const elev = new ChunkElevation(this.chunkX, this.chunkZ, details);
-        this.buildTerrainMesh(details, elev);
+        this.buildTerrainMesh(elev);
+        this.buildWaterMesh();
     }
 
     delete() {
@@ -171,14 +226,24 @@ export class Terrain {
     static UNITS_PER_CHUNK = Terrain.UNITS_PER_TILE * Terrain.TILES_PER_CHUNK
     
     static TERRAIN_TEXTURE = null;
+    static WATER_SHADER = null;
     static async loadResources() {
         const textureReq = Texture.loadImage("/res/terrain.png");
+        const waterShaderReq = Shader.loadGlsl(
+            "/res/shaders/geometry.vert.glsl", "res/shaders/water.frag.glsl"
+        );
         Terrain.TERRAIN_TEXTURE = await textureReq;
+        Terrain.WATER_SHADER = await waterShaderReq;
     }
 
+    static RIVER_TESSELLATION_RES = 10;
+
     constructor(details) {
+        details.tesRivers = details.rivers
+            .map(r => quadspline.tessellate(r, Terrain.RIVER_TESSELLATION_RES));
+        console.log(details.tesRivers);
         noise.seed(details.seed);
-        this.sizeC = details.sizeChunks;
+        this.sizeC = details.sizeC;
         this.sizeT = chunks.toTiles(this.sizeC);
         this.sizeU = chunks.toUnits(this.sizeC);
         this.chunks = [];
@@ -191,13 +256,33 @@ export class Terrain {
         }
     }
 
+    static CHUNK_RENDER_RADIUS = 2;
+
     render(renderer) {
+        renderer.setUniforms(Terrain.WATER_SHADER);
+        const camChunkX = units.toChunks(renderer.camera.center.x);
+        const camChunkZ = units.toChunks(renderer.camera.center.z);
+        const d = Terrain.CHUNK_RENDER_RADIUS;
         for (const chunk of this.chunks) {
+            const isOutOfBounds =
+                chunk.chunkX <= Math.floor(camChunkX) - d ||
+                chunk.chunkZ <= Math.floor(camChunkZ) - d ||
+                chunk.chunkX >= Math.ceil(camChunkX) + d ||
+                chunk.chunkZ >= Math.ceil(camChunkZ) + d;
+            if (isOutOfBounds) { continue; }
             renderer.renderGeometry(
                 chunk.terrainMesh, Terrain.TERRAIN_TEXTURE,
-                chunk.terrainMeshInstances
+                chunk.waterMeshInstances
+            );
+            renderer.renderGeometry(
+                chunk.waterMesh, null,
+                chunk.terrainMeshInstances, Terrain.WATER_SHADER
             );
         }
+    }
+
+    delete() {
+        this.chunks.forEach(c => c.delete());
     }
 
 }

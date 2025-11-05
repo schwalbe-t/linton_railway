@@ -1,7 +1,8 @@
 import { Matrix4, Vector3, Vector4 } from "../libs/math.gl.js";
 import {
     Geometry, Texture, Shader, Model,
-    DepthTesting, TextureFormat, TextureFilter
+    DepthTesting, TextureFormat, TextureFilter,
+    UniformBuffer
 } from "./graphics.js";
 import { Renderer } from "./renderer.js";
 import { quadspline, linspline } from "./spline.js";
@@ -34,7 +35,7 @@ class ChunkElevation {
 
     static MIN_BASE_TERRAIN = -3.0;
 
-    static riverElevLimit(tileX, tileZ, details) {
+    static riverMaxElev(tileX, tileZ, details) {
         let closestDist = Infinity;
         for (const river of details.tesRivers) {
             for (const seg of river.segments) {
@@ -48,7 +49,7 @@ class ChunkElevation {
             + closestDist * ChunkElevation.RIVER_DIST_ELEV;
     }
 
-    static mountainElevLimit(tileX, tileZ, details) {
+    static mountainAddedElev(tileX, tileZ, details) {
         let highestLimit = 0;
         for (const m of details.mountains) {
             const dist = Math.hypot(tileX - m.tileX, tileZ - m.tileZ);
@@ -76,9 +77,9 @@ class ChunkElevation {
                     + noise.perlin2(tileX / 32.74, tileZ / 32.74) * 10;
                 const elev = Math.max(rawElev, ChunkElevation.MIN_BASE_TERRAIN);
                 const riverElev
-                    = ChunkElevation.riverElevLimit(tileX, tileZ, details);
+                    = ChunkElevation.riverMaxElev(tileX, tileZ, details);
                 const mountainElev
-                    = ChunkElevation.mountainElevLimit(tileX, tileZ, details);
+                    = ChunkElevation.mountainAddedElev(tileX, tileZ, details);
                 this.elevation[this.indexOfRel(rTileX, rTileZ)]
                     = Math.min(elev + mountainElev, riverElev);
             }
@@ -257,8 +258,7 @@ export class TerrainChunk {
                 const z = chunks.toUnits(this.chunkZ)
                     + tiles.toUnits(rTileZ + Math.random());
                 const r = Math.random() * 2 * Math.PI;
-                const instance = new Vector4(x, y, z, r);
-                this.treeInstances.push(instance);
+                this.treeInstances.push(new Vector4(x, y, z, r));
             }
         }
     }
@@ -285,7 +285,7 @@ export class Terrain {
     static TILES_PER_CHUNK = 32
     static UNITS_PER_CHUNK = Terrain.UNITS_PER_TILE * Terrain.TILES_PER_CHUNK
     
-    static TREE_MAX_INSTANCE_COUNT = 256;
+    static TREE_MAX_INSTANCE_COUNT = 4096;
 
     static TERRAIN_TEXTURE = null;
     static WATER_SHADER = null;
@@ -319,7 +319,22 @@ export class Terrain {
         Terrain.TREE_MODEL = await treeModelReq;
     }
 
-    static RIVER_TESSELLATION_RES = 5;
+    buildTreeBuffers() {
+        const treeInstances = this.chunks.map(c => c.treeInstances).flat();
+        const numTreeBuffers = Math.ceil(
+            treeInstances.length / Terrain.TREE_MAX_INSTANCE_COUNT
+        );
+        this.treeBuffers = new Array(numTreeBuffers).fill(null)
+            .map(() => new UniformBuffer(Terrain.TREE_MAX_INSTANCE_COUNT * 4));
+        for(let i = 0; i < this.treeBuffers.length; i += 1) {
+            const start = i * Terrain.TREE_MAX_INSTANCE_COUNT;
+            const end = (i + 1) * Terrain.TREE_MAX_INSTANCE_COUNT;
+            this.treeBuffers[i].upload(treeInstances.slice(start, end));
+        }
+        console.log(this.treeBuffers);
+    }
+
+    static RIVER_TESSELLATION_RES = 10;
 
     constructor(details) {
         details.tesRivers = details.rivers
@@ -336,6 +351,7 @@ export class Terrain {
                 ));
             }
         }
+        this.buildTreeBuffers();
     }
 
     static RENDER_XMIN = -2;
@@ -364,8 +380,10 @@ export class Terrain {
                 chunk.waterMesh, Terrain.WATER_NORMAL_TEXTURE,
                 chunk.terrainMeshInstances, null, Terrain.WATER_SHADER
             );
+        }
+        for (const treeBuffer of this.treeBuffers) {
             renderer.renderModel(
-                Terrain.TREE_MODEL, chunk.treeInstances,
+                Terrain.TREE_MODEL, treeBuffer,
                 Terrain.TREE_SHADOW_SHADER, Terrain.TREE_GEOMETRY_SHADER,
                 DepthTesting.ENABLED, Terrain.TREE_MAX_INSTANCE_COUNT
             );
@@ -374,6 +392,7 @@ export class Terrain {
 
     delete() {
         this.chunks.forEach(c => c.delete());
+        this.treeBuffers.forEach(b => b.delete());
     }
 
 }

@@ -1,7 +1,8 @@
 
 import { Vector3, Vector4, Matrix4 } from "../libs/math.gl.js";
 import { 
-    ObjProperty, DepthTesting, Framebuffer, Texture, TextureFormat, Shader
+    ObjProperty, DepthTesting, Framebuffer, Texture, TextureFormat, Shader,
+    UniformBuffer
 } from "./graphics.js";
 
 export class Renderer {
@@ -15,11 +16,10 @@ export class Renderer {
 
     static SUN_OFFSET = new Vector3(1.134, 1, -0.85).normalize().scale(200);
     static SUN_ORTHO_PROJ = {
-        left: -200, right: 200,
-        bottom: -100, top: 100,
+        left: -400, right: 400,
+        bottom: -200, top: 200,
         near: 10, far: 400
     };
-    static SHADOW_MAP_RES = 2048;
     static DEPTH_BIAS = 0.005;
     static NORMAL_OFFSET = 0.01;
     static FOV_Y = 60;
@@ -65,14 +65,14 @@ export class Renderer {
         this.target = null;
         this.lightProj = new Matrix4();
         this.viewProj = new Matrix4();
-        this.shadowMap = new Framebuffer();
-        this.shadowMap.setDepth(Texture.withSize(
-            Renderer.SHADOW_MAP_RES, Renderer.SHADOW_MAP_RES,
-            TextureFormat.DEPTH16
-        ));
         this.sunDirection = new Vector3();
         this.time = 0.0;
         this.shadowMapping = true;
+        this.shadowMapRes = 256;
+        this.shadowMap = new Framebuffer();
+        this.shadowMap.setDepth(Texture.withSize(
+            256, 256, TextureFormat.DEPTH16
+        ));
     }
 
     updateSun() {
@@ -100,6 +100,13 @@ export class Renderer {
     update(target, deltaTime = 0.0) {
         this.target = target;
         this.time += deltaTime;
+        if (this.shadowMap.depth.width !== this.shadowMapRes) {
+            const oldDepth = this.shadowMap.depth;
+            this.shadowMap.setDepth(Texture.withSize(
+                this.shadowMapRes, this.shadowMapRes, TextureFormat.DEPTH16
+            ));
+            oldDepth.delete();
+        }
         this.updateSun();
         this.updateCamera(this.camera);
         this.setShadowUniforms(Renderer.SHADOW_SHADER);
@@ -143,6 +150,11 @@ export class Renderer {
         const s = this.target !== this.shadowMap
             ? (geometryShader ? geometryShader : Renderer.GEOMETRY_SHADER)
             : (shadowShader   ? shadowShader   : Renderer.SHADOW_SHADER  );
+        if (instances instanceof UniformBuffer) {
+            s.setUniform(Renderer.INSTANCES_UNIFORM, instances);
+            f(s, maxBatchSize);
+            return;
+        }
         const remaining = [...instances];
         while (remaining.length > 0) {
             const batch = remaining.splice(0, maxBatchSize);

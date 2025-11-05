@@ -30,15 +30,33 @@ const PROFILES = Object.freeze([
         renderScale: 1.0,
         shadowMapping: true,
         shadowMapRes: 2048
+    }),
+
+    Object.freeze({
+        renderScale: 1.0,
+        shadowMapping: true,
+        shadowMapRes: 4096
     })
 
 ]);
 
-let currentProfileIdx = -1;
+let gameVisible = true;
+let gameInFocus = true;
+
+document.addEventListener("visibilitychange", e => {
+    gameVisible = document.visibilityState === "visible";
+});
+window.addEventListener("focus", () => { gameInFocus = true; });
+window.addEventListener("blur", () => { gameInFocus = false; });
+
+let cProfileIdx = -1;
 
 export function applyProfile(profileIdx, renderer) {
-    if (currentProfileIdx === profileIdx) { return; }
-    currentProfileIdx = profileIdx;
+    if (cProfileIdx === profileIdx) { return; }
+    console.log(
+        `Using graphics profile ${profileIdx + 1}/${PROFILES.length}`
+    );
+    cProfileIdx = profileIdx;
     const profile = PROFILES[profileIdx];
     renderer.shadowMapping = profile.shadowMapping;
     if (profile.shadowMapping) {
@@ -47,14 +65,31 @@ export function applyProfile(profileIdx, renderer) {
     setRenderScale(profile.renderScale);
 }
 
-const PROFILE_CHANGE_FPS = 30; // decrease if FPS lower
+// An average delta time value over 'DT_HISTORY_LEN' frames
+// that exceeds this value causes a switch to the next worse profile.
+const PROFILE_DECR_DT = 1/50;
+
+let deltaTimeHistory = [];
+const DT_HISTORY_LEN = 100;
 
 export function updateProfile(deltaTime, renderer) {
-    if (currentProfileIdx === -1) {
+    if (cProfileIdx === -1) {
         applyProfile(PROFILES.length - 1, renderer);
     }
-    const fps = 1.0 / deltaTime;
-    if (fps < PROFILE_CHANGE_FPS && currentProfileIdx > 0) {
-        applyProfile(currentProfileIdx - 1, renderer);
+    if (!gameInFocus || !gameVisible) {
+        deltaTimeHistory = [];
+        return;
+    }
+    deltaTimeHistory.push(deltaTime);
+    if (deltaTimeHistory.length > DT_HISTORY_LEN) {
+        deltaTimeHistory = deltaTimeHistory.slice(-DT_HISTORY_LEN);
+        const deltaTimeAvg = deltaTimeHistory.reduce((a, b) => a + b)
+            / deltaTimeHistory.length;
+        const hasWorse = cProfileIdx > 0;
+        if (deltaTimeAvg > PROFILE_DECR_DT && hasWorse) {
+            console.log(1 / deltaTimeAvg);
+            applyProfile(cProfileIdx - 1, renderer);
+            deltaTimeHistory = [];
+        }
     }
 }

@@ -16,7 +16,7 @@ const RESOURCES = resources.load({
 });
 
 window.addEventListener("load", () => {
-    initGraphics(document.getElementById("game-canvas"), 0.75);
+    initGraphics(document.getElementById("game-canvas"));
     RESOURCES.onLoad(() => {
         init();
         gameloop.start();
@@ -40,10 +40,11 @@ function onUpdateTerrain(details) {
 window.onUpdateTerrain = onUpdateTerrain;
 
 gameloop.onFrame(deltaTime => {
-    console.log(1.0 / deltaTime);
     if (terrain !== null) {
-        gprofiles.updateProfile(deltaTime, renderer);
+        // update
         camera.update(deltaTime);
+        // render
+        gprofiles.updateProfile(deltaTime, renderer);
         updateGraphics();
         camera.configureRenderer(renderer);
         renderer.update(defaultFramebuffer, deltaTime);

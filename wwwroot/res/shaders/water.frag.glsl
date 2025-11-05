@@ -8,9 +8,12 @@ in vec2 fTexCoords;
 
 out vec4 oColor;
 
+uniform sampler2D uNormalMap;
+uniform sampler2D uDuDvMap;
+
 const vec4 BASE_COLOR = vec4(133.0, 182.0, 154.0, 255.0) / 255.0;
 const vec4 HIGHLIGHT_COLOR = vec4(209.0, 193.0, 158.0, 255.0) / 255.0;
-const float HIGHLIGHT_MIN_DIFFUSE = 0.75;
+const float HIGHLIGHT_MIN_DIFFUSE = 0.8;
 
 const float SCALE_0 =  2.5;
 const float SCALE_1 =  5.0;
@@ -24,7 +27,7 @@ const float SPEED_2 = 0.03;
 
 vec3 sampleNormal(float scale, vec2 offset, float speed) {
     vec2 uv = mod(fTexCoords * scale + offset * uTime * speed, 1.0);
-    vec3 raw = texture(uTexture, uv).rgb;
+    vec3 raw = texture(uNormalMap, uv).rgb;
     return raw * 2.0 - 1.0;
 }
 
@@ -36,5 +39,9 @@ void main() {
     );
     vec3 worldNormal = tangentNormal.yzx;
     float diffuse = diffuseIntensityOf(worldNormal);
-    oColor = shadedColor(BASE_COLOR, fWorldPosition, worldNormal);
+    if (diffuse >= HIGHLIGHT_MIN_DIFFUSE) {
+        oColor = HIGHLIGHT_COLOR;
+    } else {
+        oColor = shadedColor(BASE_COLOR, fWorldPosition, worldNormal);
+    }
 }

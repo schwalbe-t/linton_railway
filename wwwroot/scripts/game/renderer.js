@@ -15,11 +15,8 @@ export class Renderer {
     static GEOMETRY_LAYOUT = [ 3, 3, 2 ];
 
     static SUN_OFFSET = new Vector3(1.134, 1, -0.85).normalize().scale(200);
-    static SUN_ORTHO_PROJ = {
-        left: -400, right: 400,
-        bottom: -200, top: 200,
-        near: 10, far: 400
-    };
+    static SUN_NEAR = 10;
+    static SUN_FAR = 400;
     static DEPTH_BIAS = 0.005;
     static NORMAL_OFFSET = 0.01;
     static FOV_Y = 60;
@@ -62,6 +59,12 @@ export class Renderer {
             center: new Vector3(),
             up: new Vector3()
         };
+        this.sunRadius = 200;
+        this.sunOrthoProj = {
+            left: 0, right: 0,
+            bottom: 0, top: 0,
+            near: Renderer.SUN_NEAR, far: Renderer.SUN_FAR
+        };
         this.target = null;
         this.lightProj = new Matrix4();
         this.viewProj = new Matrix4();
@@ -76,14 +79,18 @@ export class Renderer {
     }
 
     updateSun() {
+        this.sunDirection = Renderer.SUN_OFFSET.clone().normalize().negate();
         // update sun camera setup
         this.sun.center = this.camera.center.clone();
         this.sun.eye = this.sun.center.clone().add(Renderer.SUN_OFFSET);
         this.sun.up = this.camera.up.clone();
-        this.sunDirection = Renderer.SUN_OFFSET.clone().normalize().negate();
-        // update sun view projection matrix
         const view = new Matrix4().lookAt(this.sun);
-        const projection = new Matrix4().ortho(Renderer.SUN_ORTHO_PROJ);
+        // update sun view projection matrix
+        this.sunOrthoProj.left   = -this.sunRadius * 2.0;
+        this.sunOrthoProj.right  = +this.sunRadius * 2.0;
+        this.sunOrthoProj.bottom = -this.sunRadius;
+        this.sunOrthoProj.top    = +this.sunRadius;
+        const projection = new Matrix4().ortho(this.sunOrthoProj);
         this.lightProj = projection.multiplyRight(view);
     }
 

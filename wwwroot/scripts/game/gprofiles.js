@@ -65,7 +65,7 @@ export function applyProfile(renderer, terrain) {
 const PROFILE_DECR_DT = 1/50;
 
 let deltaTimeHistory = [];
-const DT_HISTORY_LEN = 20;
+const DT_HISTORY_LEN = 50;
 
 export function updateProfile(deltaTime) {
     if (!gameInFocus || !gameVisible) {

@@ -37,4 +37,5 @@ export function configureRenderer(renderer) {
         .normalize().scale(eyeDist)
         .add(position);
     renderer.camera.up.copy(UP);
+    renderer.sunRadius = eyeDist * 1.5;
 }

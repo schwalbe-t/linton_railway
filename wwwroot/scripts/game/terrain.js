@@ -24,7 +24,7 @@ export const chunks = Object.freeze({
 });
 
 
-class ChunkElevation {
+class HeightMap {
 
     static RIVER_BASE_ELEV = -20.0;
     static RIVER_DIST_ELEV = 10.0; // units per distance from river
@@ -46,15 +46,15 @@ class ChunkElevation {
                 closestDist = Math.min(closestDist, segDist);
             }
         }
-        return ChunkElevation.RIVER_BASE_ELEV
-            + closestDist * ChunkElevation.RIVER_DIST_ELEV;
+        return HeightMap.RIVER_BASE_ELEV
+            + closestDist * HeightMap.RIVER_DIST_ELEV;
     }
 
     static mountainAddedElev(tileX, tileZ, details) {
         let highestLimit = 0;
         for (const m of details.mountains) {
             const dist = Math.hypot(tileX - m.tileX, tileZ - m.tileZ);
-            const bLimit = m.height - dist * ChunkElevation.MOUNTAIN_DIST_ELEV;
+            const bLimit = m.height - dist * HeightMap.MOUNTAIN_DIST_ELEV;
             const limit = bLimit
                 + noise.perlin2(tileX / 3.46, tileZ / 3.46) * 2
                 + noise.perlin2(tileX / 10.6, tileZ / 10.6) * 5;
@@ -63,41 +63,35 @@ class ChunkElevation {
         return highestLimit;
     }
 
-    constructor(chunkX, chunkZ, details) {
-        const chunkSizeTiles = chunks.toTiles(1);
-        this.originTileX = chunks.toTiles(chunkX);
-        this.originTileZ = chunks.toTiles(chunkZ);
-        this.elevation = new Array(chunkSizeTiles ** 2);
-        for (let rTileX = 0; rTileX <= chunkSizeTiles; rTileX += 1) {
-            for (let rTileZ = 0; rTileZ <= chunkSizeTiles; rTileZ += 1) {
-                const tileX = this.originTileX + rTileX;
-                const tileZ = this.originTileZ + rTileZ;
+    constructor(sizeC, details) {
+        this.sizeC = sizeC;
+        this.sizeT = chunks.toTiles(sizeC);
+        this.elevation = new Array((this.sizeT + 1) ** 2);
+        for (let tileX = 0; tileX <= this.sizeT; tileX += 1) {
+            for (let tileZ = 0; tileZ <= this.sizeT; tileZ += 1) {
                 const rawElev 
                     = noise.perlin2(tileX / 5.25, tileZ / 5.25) * 3
                     + noise.perlin2(tileX / 8.34, tileZ / 8.34) * 5
                     + noise.perlin2(tileX / 32.74, tileZ / 32.74) * 10;
-                const elev = Math.max(rawElev, ChunkElevation.MIN_BASE_TERRAIN);
+                const elev = Math.max(rawElev, HeightMap.MIN_BASE_TERRAIN);
                 const riverElev
-                    = ChunkElevation.riverMaxElev(tileX, tileZ, details);
+                    = HeightMap.riverMaxElev(tileX, tileZ, details);
                 const mountainElev
-                    = ChunkElevation.mountainAddedElev(tileX, tileZ, details);
-                this.elevation[this.indexOfRel(rTileX, rTileZ)]
+                    = HeightMap.mountainAddedElev(tileX, tileZ, details);
+                this.elevation[this.indexOf(tileX, tileZ)]
                     = Math.min(elev + mountainElev, riverElev);
             }
         }
     }
 
-    indexOfRel(rTileX, rTileZ) {
-        return rTileZ * (Terrain.TILES_PER_CHUNK + 1) + rTileX;
+    indexOf(tileX, tileZ) {
+        return tileZ * (this.sizeT + 1) + tileX;
     }
 
-    atRel(rTileX, rTileZ) {
-        if (rTileX < 0 || rTileX > chunks.toTiles(1)) { return 0.0; }
-        if (rTileZ < 0 || rTileZ > chunks.toTiles(1)) { return 0.0; }
-        return this.elevation[this.indexOfRel(rTileX, rTileZ)];
-    }
     at(tileX, tileZ) {
-        return this.atRel(tileX - this.originTileX, tileZ - this.originTileZ);
+        if (tileX < 0 || tileX > this.sizeT) { return 0.0; }
+        if (tileZ < 0 || tileZ > this.sizeT) { return 0.0; }
+        return this.elevation[this.indexOf(tileX, tileZ)];
     }
 
 }
@@ -106,19 +100,32 @@ class ChunkElevation {
 export class TerrainChunk {
 
     buildTerrainMesh(elev) {
+        const chTileX = chunks.toTiles(this.chunkX);
+        const chTileZ = chunks.toTiles(this.chunkZ);
         const vertData = [];
         const elemData = [];
         let nextVertIdx = 0;
         for (let rTileL = 0; rTileL < chunks.toTiles(1); rTileL += 1) {
             for (let rTileT = 0; rTileT < chunks.toTiles(1); rTileT += 1) {
-                const vertexPos = (rrTileX, rrTileZ) => {
-                    const rTileX = rTileL + rrTileX;
-                    const rTileZ = rTileT + rrTileZ;
+                const vertexPos = (rTileX, rTileZ) => {
+                    const tileX = chTileX + rTileX;
+                    const tileZ = chTileZ + rTileZ;
                     return new Vector3(
                         tiles.toUnits(rTileX), 
-                        elev.atRel(rTileX, rTileZ),
+                        elev.at(tileX, tileZ),
                         tiles.toUnits(rTileZ)
                     );
+                };
+                const vertexNorm = (rTileX, rTileZ) => {
+                    const tileX = chTileX + rTileX;
+                    const tileZ = chTileZ + rTileZ;
+                    const hl = elev.at(tileX - 1, tileZ    );
+                    const hr = elev.at(tileX + 1, tileZ    );
+                    const ht = elev.at(tileX,     tileZ - 1);
+                    const hb = elev.at(tileX,     tileZ + 1);
+                    const dx = new Vector3(tiles.toUnits(2), hr - hl, 0);
+                    const dz = new Vector3(0, hb - ht, tiles.toUnits(2));
+                    return dz.cross(dx).normalize();
                 };
                 const buildVertex = (
                     pos, normal, rrTileX, rrTileZ, matU, matV
@@ -133,38 +140,39 @@ export class TerrainChunk {
                     return i;
                 };
                 const buildFragment = (
-                    aRRTileX, aRRTileZ, aPos,
-                    bRRTileX, bRRTileZ, bPos,
-                    cRRTileX, cRRTileZ, cPos
+                    aRRTileX, aRRTileZ, aPos, aNorm,
+                    bRRTileX, bRRTileZ, bPos, bNorm,
+                    cRRTileX, cRRTileZ, cPos, cNorm
                 ) => {
                     const minY = Math.min(aPos.y, bPos.y, cPos.y);
                     const maxY = Math.max(aPos.y, bPos.y, cPos.y);
-                    const isRock = maxY - minY > ChunkElevation.ROCK_MIN_DIFF_Y;
-                    const isSnow = maxY >= ChunkElevation.SNOW_MIN_Y;
+                    const isRock = maxY - minY > HeightMap.ROCK_MIN_DIFF_Y;
+                    const isSnow = maxY >= HeightMap.SNOW_MIN_Y;
                     const matU = isSnow? 0.5 : 0.0;
                     const matV = isRock? 0.5 : 0.0;
-                    const ab = bPos.clone().subtract(aPos);
-                    const ac = cPos.clone().subtract(aPos);
-                    const normal = ab.cross(ac).normalize();
                     const a = buildVertex(
-                        aPos, normal, aRRTileX, aRRTileZ, matU, matV
+                        aPos, aNorm, aRRTileX, aRRTileZ, matU, matV
                     );
                     const b = buildVertex(
-                        bPos, normal, bRRTileX, bRRTileZ, matU, matV
+                        bPos, bNorm, bRRTileX, bRRTileZ, matU, matV
                     );
                     const c = buildVertex(
-                        cPos, normal, cRRTileX, cRRTileZ, matU, matV
+                        cPos, cNorm, cRRTileX, cRRTileZ, matU, matV
                     );
                     elemData.push(a, b, c);
                 };
-                const tlPos = vertexPos(0, 0);
-                const trPos = vertexPos(1, 0);
-                const blPos = vertexPos(0, 1);
-                const brPos = vertexPos(1, 1);
-                const tlToBrDiff = Math.abs(tlPos.y - brPos.y);
-                const trToBlDiff = Math.abs(trPos.y - blPos.y);
-                const tlToBrMax = Math.max(tlPos.y, brPos.y);
-                const trToBlMax = Math.max(trPos.y, blPos.y);
+                const tlP = vertexPos(rTileL    , rTileT    );
+                const trP = vertexPos(rTileL + 1, rTileT    );
+                const blP = vertexPos(rTileL    , rTileT + 1);
+                const brP = vertexPos(rTileL + 1, rTileT + 1);
+                const tlN = vertexNorm(rTileL    , rTileT    );
+                const trN = vertexNorm(rTileL + 1, rTileT    );
+                const blN = vertexNorm(rTileL    , rTileT + 1);
+                const brN = vertexNorm(rTileL + 1, rTileT + 1);
+                const tlToBrDiff = Math.abs(tlP.y - brP.y);
+                const trToBlDiff = Math.abs(trP.y - blP.y);
+                const tlToBrMax = Math.max(tlP.y, brP.y);
+                const trToBlMax = Math.max(trP.y, blP.y);
                 // minimize height difference along the cut
                 // (if height difference between cut options the same,
                 // make the highest point of the cut as low as possible)
@@ -175,14 +183,22 @@ export class TerrainChunk {
                     // tl---tr
                     //  | \ |
                     // bl---br
-                    buildFragment(0, 0, tlPos, 0, 1, blPos, 1, 1, brPos);
-                    buildFragment(0, 0, tlPos, 1, 1, brPos, 1, 0, trPos);
+                    buildFragment(
+                        0, 0, tlP, tlN, 0, 1, blP, blN, 1, 1, brP, brN
+                    );
+                    buildFragment(
+                        0, 0, tlP, tlN, 1, 1, brP, brN, 1, 0, trP, trN
+                    );
                 } else {
                     // tl---tr
                     //  | / |
                     // bl---br
-                    buildFragment(0, 0, tlPos, 0, 1, blPos, 1, 0, trPos);
-                    buildFragment(0, 1, blPos, 1, 1, brPos, 1, 0, trPos);
+                    buildFragment(
+                        0, 0, tlP, tlN, 0, 1, blP, blN, 1, 0, trP, trN
+                    );
+                    buildFragment(
+                        0, 1, blP, blN, 1, 1, brP, brN, 1, 0, trP, trN
+                    );
                 }
             }
         }
@@ -197,19 +213,19 @@ export class TerrainChunk {
     buildWaterMesh() {
         const vertData = [
             // [0] top left
-            chunks.toUnits(0), ChunkElevation.WATER_HEIGHT, chunks.toUnits(0),
+            chunks.toUnits(0), HeightMap.WATER_HEIGHT, chunks.toUnits(0),
             0, 1, 0,
             0, 1,
             // [1] top right
-            chunks.toUnits(1), ChunkElevation.WATER_HEIGHT, chunks.toUnits(0),
+            chunks.toUnits(1), HeightMap.WATER_HEIGHT, chunks.toUnits(0),
             0, 1, 0,
             1, 1,
             // [2] bottom left
-            chunks.toUnits(0), ChunkElevation.WATER_HEIGHT, chunks.toUnits(1),
+            chunks.toUnits(0), HeightMap.WATER_HEIGHT, chunks.toUnits(1),
             0, 1, 0,
             0, 0,
             // [3] bottom right
-            chunks.toUnits(1), ChunkElevation.WATER_HEIGHT, chunks.toUnits(1),
+            chunks.toUnits(1), HeightMap.WATER_HEIGHT, chunks.toUnits(1),
             0, 1, 0,
             1, 0 
         ];
@@ -247,14 +263,14 @@ export class TerrainChunk {
                     + TerrainChunk.TREE_MIN_CHANCE;
                 if (Math.random() >= chance) { continue; }
                 const corners = [
-                    elev.atRel(rTileX,     rTileZ    ),
-                    elev.atRel(rTileX + 1, rTileZ    ),
-                    elev.atRel(rTileX,     rTileZ + 1),
-                    elev.atRel(rTileX + 1, rTileZ + 1)
+                    elev.at(tileX,     tileZ    ),
+                    elev.at(tileX + 1, tileZ    ),
+                    elev.at(tileX,     tileZ + 1),
+                    elev.at(tileX + 1, tileZ + 1)
                 ];
                 const minY = Math.min(...corners);
                 const maxY = Math.max(...corners);
-                if (maxY - minY >= ChunkElevation.ROCK_MIN_DIFF_Y) { continue; }
+                if (maxY - minY >= HeightMap.ROCK_MIN_DIFF_Y) { continue; }
                 const y = minY;
                 const x = chunks.toUnits(this.chunkX)
                     + tiles.toUnits(rTileX + Math.random());
@@ -271,10 +287,9 @@ export class TerrainChunk {
         this.treeInstanceCount = treeBufferData.length / 4;
     }
 
-    constructor(chunkX, chunkZ, details) {
+    constructor(chunkX, chunkZ, elev) {
         this.chunkX = chunkX;
         this.chunkZ = chunkZ;
-        const elev = new ChunkElevation(this.chunkX, this.chunkZ, details);
         this.buildTerrainMesh(elev);
         this.buildWaterMesh();
         this.buildTreeInstances(elev);
@@ -356,7 +371,8 @@ export class Terrain {
 
     static TERRAIN_TEXTURE = null;
     static WATER_SHADER = null;
-    static WATER_NORMAL_TEXTURE = null;
+    static WATER_NORMAL_MAP = null;
+    static WATER_DUDV_MAP = null;
     static TREE_SHADOW_SHADER = null;
     static TREE_GEOMETRY_SHADER = null;
     static TREE_MODEL = null;
@@ -366,7 +382,7 @@ export class Terrain {
         const waterShaderReq = Shader.loadGlsl(
             "/res/shaders/geometry.vert.glsl", "/res/shaders/water.frag.glsl"
         );
-        const waterNormalTextureReq = Texture.loadImage("/res/water.png");
+        const waterNormalReq = Texture.loadImage("/res/water_normal.png");
         const treeShadowShaderReq = Shader.loadGlsl(
             "/res/shaders/tree.vert.glsl", "/res/shaders/shadows.frag.glsl"
         );
@@ -384,7 +400,7 @@ export class Terrain {
         );
         Terrain.TERRAIN_TEXTURE = await textureReq;
         Terrain.WATER_SHADER = await waterShaderReq;
-        Terrain.WATER_NORMAL_TEXTURE = await waterNormalTextureReq;
+        Terrain.WATER_NORMAL_MAP = await waterNormalReq;
         Terrain.TREE_SHADOW_SHADER = await treeShadowShaderReq;
         Terrain.TREE_GEOMETRY_SHADER = await treeGeometryShaderReq;
         Terrain.TREE_MODEL = await treeModelReq;
@@ -402,11 +418,12 @@ export class Terrain {
         this.sizeC = details.sizeC;
         this.sizeT = chunks.toTiles(this.sizeC);
         this.sizeU = chunks.toUnits(this.sizeC);
+        const elev = new HeightMap(this.sizeC, details);
         this.chunks = [];
         for (let chunkX = 0; chunkX < this.sizeC; chunkX += 1) {
             for (let chunkZ = 0; chunkZ < this.sizeC; chunkZ += 1) {
                 this.chunks.push(new TerrainChunk(
-                    chunkX, chunkZ, details
+                    chunkX, chunkZ, elev
                 ));
             }
         }
@@ -418,6 +435,7 @@ export class Terrain {
     static RENDER_ZMAX = +1;
 
     render(renderer) {
+        Terrain.WATER_SHADER.setUniform("uNormalMap", Terrain.WATER_NORMAL_MAP);
         renderer.setGeometryUniforms(Terrain.WATER_SHADER);
         renderer.setShadowUniforms(Terrain.TREE_SHADOW_SHADER);
         renderer.setGeometryUniforms(Terrain.TREE_GEOMETRY_SHADER);

@@ -1,11 +1,12 @@
-import { Matrix4, Vector3, Vector4 } from "../libs/math.gl.js";
+import { Matrix4, Vector3 } from "../libs/math.gl.js";
 import {
     Geometry, Texture, Shader, Model,
     DepthTesting, TextureFormat, TextureFilter,
-    UniformBuffer
+    UniformBuffer,
+    Framebuffer
 } from "./graphics.js";
 import { Renderer } from "./renderer.js";
-import { quadspline, linspline } from "./spline.js";
+import { quadspline } from "./spline.js";
 
 export const units = Object.freeze({
     toTiles:  u => u / Terrain.UNITS_PER_TILE,
@@ -231,7 +232,9 @@ export class TerrainChunk {
     static TREE_CHANCE_PD = 15.23;
 
     buildTreeInstances(elev) {
-        this.treeInstances = [];
+        const treeBufferData = [];
+        // will stay below 'Terrain.TREE_MAX_INSTANCE_COUNT'
+        // because even if every tile had a tree then 32 * 32 = 1024 < 4096
         for (let rTileX = 0; rTileX < chunks.toTiles(1); rTileX += 1) {
             for (let rTileZ = 0; rTileZ < chunks.toTiles(1); rTileZ += 1) {
                 const tileX = chunks.toTiles(this.chunkX) + rTileX;
@@ -258,9 +261,14 @@ export class TerrainChunk {
                 const z = chunks.toUnits(this.chunkZ)
                     + tiles.toUnits(rTileZ + Math.random());
                 const r = Math.random() * 2 * Math.PI;
-                this.treeInstances.push(new Vector4(x, y, z, r));
+                treeBufferData.push(x, y, z, r);
             }
         }
+        this.treeBuffer = new UniformBuffer(
+            Terrain.TREE_MAX_INSTANCE_COUNT * 4
+        );
+        this.treeBuffer.upload(treeBufferData);
+        this.treeInstanceCount = treeBufferData.length / 4;
     }
 
     constructor(chunkX, chunkZ, details) {
@@ -274,6 +282,7 @@ export class TerrainChunk {
 
     delete() {
         this.terrainMesh.delete();
+        this.treeBuffer.delete();
     }
 
 }
@@ -287,23 +296,82 @@ export class Terrain {
     
     static TREE_MAX_INSTANCE_COUNT = 4096;
 
+    static TREE_PR_RES = 256;
+    static TREE_PR_HEIGHT = 4.5;
+    static TREE_PR_MODEL = null;
+    static preRenderTree() {
+        const s = Terrain.PRERENDER_SHADER;
+        s.setUniform(Renderer.INSTANCES_UNIFORM, [ new Matrix4() ]);
+        const fh = Terrain.TREE_PR_HEIGHT;
+        const hh = fh / 2;
+        const view = new Matrix4().lookAt({
+            center: new Vector3(0, hh, 0),
+            eye: new Vector3(1, 0, 1).normalize().scale(hh + 1).add([0, hh, 0]),
+            up: new Vector3(0, 1, 0)
+        });
+        const proj = new Matrix4().ortho({
+            left: -hh, right: hh,
+            bottom: -hh, top: hh,
+            near: 1, far: fh + 1
+        });
+        s.setUniform(Renderer.VIEW_PROJ_UNIFORM, proj.multiplyRight(view));
+        const color = Texture.withSize(
+            Terrain.TREE_PR_RES, Terrain.TREE_PR_RES, TextureFormat.RGBA8
+        );
+        const depth = Texture.withSize(
+            Terrain.TREE_PR_RES, Terrain.TREE_PR_RES, TextureFormat.DEPTH16
+        );
+        const dest = new Framebuffer();
+        dest.setColor(color);
+        dest.setDepth(depth);
+        Terrain.TREE_MODEL.render(s, dest, Renderer.TEXTURE_UNIFORM);
+        dest.delete();
+        const vertData = [
+            // [0] - X plane top left
+            -hh, fh, 0,   0, 0, 1,   0, 1,
+            // [1] - X plane top right
+            +hh, fh, 0,   0, 0, 1,   1, 1,
+            // [2] - X plane bottom left
+            -hh,  0, 0,   0, 0, 1,   0, 0,
+            // [3] - X plane bottom right
+            +hh,  0, 0,   0, 0, 1,   1, 0,
+            // [4] - Z plane top left
+            0, fh, -hh,   1, 0, 0,   0, 1,
+            // [5] - Z plane top right
+            0, fh, +hh,   1, 0, 0,   1, 1,
+            // [6] - Z plane bottom left
+            0, 0,  -hh,   1, 0, 0,   0, 0,
+            // [7] - Z plane bottom right
+            0, 0,  +hh,   1, 0, 0,   1, 0
+        ];
+        const elemData = [
+            0, 2, 3,   0, 3, 1,
+            4, 6, 7,   4, 7, 5
+        ];
+        const geometry = new Geometry(
+            Renderer.GEOMETRY_LAYOUT, vertData, elemData
+        );
+        Terrain.TREE_PR_MODEL = new Model([ { geometry, texture: color } ]);
+    }
+
     static TERRAIN_TEXTURE = null;
     static WATER_SHADER = null;
     static WATER_NORMAL_TEXTURE = null;
     static TREE_SHADOW_SHADER = null;
     static TREE_GEOMETRY_SHADER = null;
     static TREE_MODEL = null;
+    static PRERENDER_SHADER = null;
     static async loadResources() {
         const textureReq = Texture.loadImage("/res/terrain.png");
         const waterShaderReq = Shader.loadGlsl(
-            "/res/shaders/geometry.vert.glsl", "res/shaders/water.frag.glsl"
+            "/res/shaders/geometry.vert.glsl", "/res/shaders/water.frag.glsl"
         );
         const waterNormalTextureReq = Texture.loadImage("/res/water.png");
         const treeShadowShaderReq = Shader.loadGlsl(
-            "/res/shaders/tree.vert.glsl", "res/shaders/shadows.frag.glsl"
+            "/res/shaders/tree.vert.glsl", "/res/shaders/shadows.frag.glsl"
         );
         const treeGeometryShaderReq = Shader.loadGlsl(
-            "/res/shaders/tree.vert.glsl", "res/shaders/geometry.frag.glsl"
+            "/res/shaders/tree.vert.glsl", "/res/shaders/geometry.frag.glsl"
         );
         const treeModelReq = Model.loadMeshes(Renderer.OBJ_LAYOUT, [
             { 
@@ -311,32 +379,23 @@ export class Terrain {
                 texFormat: TextureFormat.RGBA8, texFilter: TextureFilter.LINEAR
             }
         ]);
+        const preRenderShaderReq = Shader.loadGlsl(
+            "/res/shaders/geometry.vert.glsl", "/res/shaders/unshaded.frag.glsl"
+        );
         Terrain.TERRAIN_TEXTURE = await textureReq;
         Terrain.WATER_SHADER = await waterShaderReq;
         Terrain.WATER_NORMAL_TEXTURE = await waterNormalTextureReq;
         Terrain.TREE_SHADOW_SHADER = await treeShadowShaderReq;
         Terrain.TREE_GEOMETRY_SHADER = await treeGeometryShaderReq;
         Terrain.TREE_MODEL = await treeModelReq;
-    }
-
-    buildTreeBuffers() {
-        const treeInstances = this.chunks.map(c => c.treeInstances).flat();
-        const numTreeBuffers = Math.ceil(
-            treeInstances.length / Terrain.TREE_MAX_INSTANCE_COUNT
-        );
-        this.treeBuffers = new Array(numTreeBuffers).fill(null)
-            .map(() => new UniformBuffer(Terrain.TREE_MAX_INSTANCE_COUNT * 4));
-        for(let i = 0; i < this.treeBuffers.length; i += 1) {
-            const start = i * Terrain.TREE_MAX_INSTANCE_COUNT;
-            const end = (i + 1) * Terrain.TREE_MAX_INSTANCE_COUNT;
-            this.treeBuffers[i].upload(treeInstances.slice(start, end));
-        }
-        console.log(this.treeBuffers);
+        Terrain.PRERENDER_SHADER = await preRenderShaderReq;
+        Terrain.preRenderTree();
     }
 
     static RIVER_TESSELLATION_RES = 10;
 
     constructor(details) {
+        this.flatTrees = false;
         details.tesRivers = details.rivers
             .map(r => quadspline.tessellate(r, Terrain.RIVER_TESSELLATION_RES));
         noise.seed(details.seed);
@@ -351,7 +410,6 @@ export class Terrain {
                 ));
             }
         }
-        this.buildTreeBuffers();
     }
 
     static RENDER_XMIN = -2;
@@ -380,19 +438,17 @@ export class Terrain {
                 chunk.waterMesh, Terrain.WATER_NORMAL_TEXTURE,
                 chunk.terrainMeshInstances, null, Terrain.WATER_SHADER
             );
-        }
-        for (const treeBuffer of this.treeBuffers) {
             renderer.renderModel(
-                Terrain.TREE_MODEL, treeBuffer,
+                this.flatTrees ? Terrain.TREE_PR_MODEL : Terrain.TREE_MODEL,
+                chunk.treeBuffer,
                 Terrain.TREE_SHADOW_SHADER, Terrain.TREE_GEOMETRY_SHADER,
-                DepthTesting.ENABLED, Terrain.TREE_MAX_INSTANCE_COUNT
+                DepthTesting.ENABLED, chunk.treeInstanceCount
             );
         }
     }
 
     delete() {
         this.chunks.forEach(c => c.delete());
-        this.treeBuffers.forEach(b => b.delete());
     }
 
 }

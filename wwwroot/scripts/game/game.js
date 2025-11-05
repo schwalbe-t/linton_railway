@@ -44,7 +44,8 @@ gameloop.onFrame(deltaTime => {
         // update
         camera.update(deltaTime);
         // render
-        gprofiles.updateProfile(deltaTime, renderer);
+        gprofiles.updateProfile(deltaTime);
+        gprofiles.applyProfile(renderer, terrain);
         updateGraphics();
         camera.configureRenderer(renderer);
         renderer.update(defaultFramebuffer, deltaTime);

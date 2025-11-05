@@ -196,7 +196,8 @@ function showPlaying() {
     document.getElementById("game-page").style.display = "block";
 }
 
-const SOCKET_ROUTE = "wss://localhost:8443/ws/room";
+const SOCKET_PROTOCOL = location.protocol === "https:" ? "wss:" : "ws:";
+const SOCKET_ROUTE = SOCKET_PROTOCOL + `//${location.host}/ws/room`;
 const BASE_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 16000;
 

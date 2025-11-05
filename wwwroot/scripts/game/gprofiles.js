@@ -6,36 +6,35 @@ const PROFILES = Object.freeze([
 
     Object.freeze({
         renderScale: 0.5,
-        shadowMapping: false
+        shadowMapping: false,
+        flatTrees: true
     }),
 
     Object.freeze({
         renderScale: 0.75,
-        shadowMapping: false
+        shadowMapping: false,
+        flatTrees: true
     }),
 
     Object.freeze({
         renderScale: 0.75,
         shadowMapping: true,
-        shadowMapRes: 1024
+        shadowMapRes: 1024,
+        flatTrees: true
     }),
 
     Object.freeze({
         renderScale: 1.0,
         shadowMapping: true,
-        shadowMapRes: 1024
+        shadowMapRes: 2048,
+        flatTrees: false
     }),
 
     Object.freeze({
         renderScale: 1.0,
         shadowMapping: true,
-        shadowMapRes: 2048
-    }),
-
-    Object.freeze({
-        renderScale: 1.0,
-        shadowMapping: true,
-        shadowMapRes: 4096
+        shadowMapRes: 4096,
+        flatTrees: false
     })
 
 ]);
@@ -49,20 +48,16 @@ document.addEventListener("visibilitychange", e => {
 window.addEventListener("focus", () => { gameInFocus = true; });
 window.addEventListener("blur", () => { gameInFocus = false; });
 
-let cProfileIdx = -1;
+let profileIdx = PROFILES.length - 1;
 
-export function applyProfile(profileIdx, renderer) {
-    if (cProfileIdx === profileIdx) { return; }
-    console.log(
-        `Using graphics profile ${profileIdx + 1}/${PROFILES.length}`
-    );
-    cProfileIdx = profileIdx;
+export function applyProfile(renderer, terrain) {
     const profile = PROFILES[profileIdx];
+    setRenderScale(profile.renderScale);
     renderer.shadowMapping = profile.shadowMapping;
     if (profile.shadowMapping) {
         renderer.shadowMapRes = profile.shadowMapRes;
     }
-    setRenderScale(profile.renderScale);
+    terrain.flatTrees = profile.flatTrees;
 }
 
 // An average delta time value over 'DT_HISTORY_LEN' frames
@@ -70,12 +65,9 @@ export function applyProfile(profileIdx, renderer) {
 const PROFILE_DECR_DT = 1/50;
 
 let deltaTimeHistory = [];
-const DT_HISTORY_LEN = 100;
+const DT_HISTORY_LEN = 20;
 
-export function updateProfile(deltaTime, renderer) {
-    if (cProfileIdx === -1) {
-        applyProfile(PROFILES.length - 1, renderer);
-    }
+export function updateProfile(deltaTime) {
     if (!gameInFocus || !gameVisible) {
         deltaTimeHistory = [];
         return;
@@ -85,11 +77,13 @@ export function updateProfile(deltaTime, renderer) {
         deltaTimeHistory = deltaTimeHistory.slice(-DT_HISTORY_LEN);
         const deltaTimeAvg = deltaTimeHistory.reduce((a, b) => a + b)
             / deltaTimeHistory.length;
-        const hasWorse = cProfileIdx > 0;
+        const hasWorse = profileIdx > 0;
         if (deltaTimeAvg > PROFILE_DECR_DT && hasWorse) {
-            console.log(1 / deltaTimeAvg);
-            applyProfile(cProfileIdx - 1, renderer);
+            profileIdx -= 1;
             deltaTimeHistory = [];
+            console.log(
+                `Downgraded to profile ${profileIdx + 1}/${PROFILES.length}`
+            );
         }
     }
 }

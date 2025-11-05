@@ -11,6 +11,7 @@ uniform float uDepthBias;
 uniform float uNormalOffset;
 uniform sampler2D uTexture;
 uniform float uTime;
+uniform bool uShadowMapping;
 
 
 #endif

@@ -17,7 +17,7 @@ const float DIFFUSE_LIMIT = 0.5;
 
 vec4 shadedColor(vec4 color, vec3 worldPos, vec3 worldNormal) {
     bool inShadow = diffuseIntensityOf(worldNormal) < DIFFUSE_LIMIT
-        || isInShadow(worldPos, worldNormal, false);
+        || (uShadowMapping && isInShadow(worldPos, worldNormal, false));
     if (!inShadow) { return color; }
     return toShadowColor(color);
 }

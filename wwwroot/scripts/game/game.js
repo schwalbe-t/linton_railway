@@ -1,15 +1,13 @@
 
-import {
-    initGraphics, updateGraphics,
-    Shader, Model, defaultFramebuffer, 
-    TextureFormat,
-    TextureFilter
-} from "./graphics.js";
-import { Renderer } from "./renderer.js";
 import * as resources from "./resources.js";
 import * as gameloop from "./gameloop.js";
-import { Terrain } from "./terrain.js";
 import * as camera from "./camera.js";
+import * as gprofiles from "./gprofiles.js";
+import {
+    initGraphics, updateGraphics, defaultFramebuffer
+} from "./graphics.js";
+import { Renderer } from "./renderer.js";
+import { Terrain } from "./terrain.js";
 import { resetInput } from "./input.js";
 
 const RESOURCES = resources.load({
@@ -18,7 +16,7 @@ const RESOURCES = resources.load({
 });
 
 window.addEventListener("load", () => {
-    initGraphics(document.getElementById("game-canvas"));
+    initGraphics(document.getElementById("game-canvas"), 0.75);
     RESOURCES.onLoad(() => {
         init();
         gameloop.start();
@@ -44,6 +42,7 @@ window.onUpdateTerrain = onUpdateTerrain;
 gameloop.onFrame(deltaTime => {
     console.log(1.0 / deltaTime);
     if (terrain !== null) {
+        gprofiles.updateProfile(deltaTime, renderer);
         camera.update(deltaTime);
         updateGraphics();
         camera.configureRenderer(renderer);

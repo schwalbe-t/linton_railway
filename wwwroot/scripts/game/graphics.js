@@ -5,6 +5,7 @@ import {
 
 
 
+let renderScale = 1.0;
 let canvas = null;
 let gl = null;
 let initHandlers = [];
@@ -28,13 +29,17 @@ export function initGraphics(canvasElement) {
     initHandlers = [];
 }
 
+export function setRenderScale(scale = 1.0) {
+    renderScale = scale;
+}
+
 export function updateGraphics() {
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
+    const width = canvas.clientWidth * renderScale;
+    const height = canvas.clientHeight * renderScale;
     if (canvas.width !== width || canvas.height !== height) {
         // size of canvas has changed
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
+        canvas.width = width;
+        canvas.height = height;
         if (AbstractFramebuffer.bound === defaultFramebuffer) {
             // Re-bind the default buffer if it's the current buffer
             // since its size has changed and we therefore need another call
@@ -143,6 +148,7 @@ export class Shader {
         gl.deleteShader(fragmentShader);
         this.uniforms = {};
         this.textures = [];
+        this.buffers = [];
     }
 
     allocateTexSlot(name, texture) {
@@ -156,10 +162,38 @@ export class Shader {
         this.textures.push({ name, texture });
         return slot;
     }
+
+    allocateBufferPoint(name, buffer) {
+        for (let point = 0; point < this.buffers.length; point += 1) {
+            const entry = this.buffers[point];
+            if (entry.name !== name) { continue; }
+            entry.buffer = buffer;
+            return point;
+        }
+        const point = this.buffers.length;
+        this.buffers.push({ name, buffer });
+        return point;
+    }
     
     setUniform(name, value) {
         if (value === null || value === undefined) { return; }
         this.partBind();
+        if (value instanceof UniformBuffer) {
+            let blockIndex = this.uniforms[name];
+            if (blockIndex === undefined) {
+                blockIndex = gl.getUniformBlockIndex(this.program, name);
+                this.uniforms[name] = blockIndex;
+            }
+            if (blockIndex === gl.INVALID_INDEX) {
+                // fail silently - may have been optimized away
+                return;
+            }
+            const buffer = value.ubo;
+            const point = this.allocateBufferPoint(name, buffer);
+            gl.bindBufferBase(gl.UNIFORM_BUFFER, point, buffer);
+            gl.uniformBlockBinding(this.program, blockIndex, point);
+            return;
+        }
         let loc = this.uniforms[name];
         if (loc === undefined) {
             loc = gl.getUniformLocation(this.program, name);
@@ -172,6 +206,8 @@ export class Shader {
         let isArray = false;
         if (typeof value === "number") {
             gl.uniform1f(loc, value);
+        } else if (typeof value === "boolean") {
+            gl.uniform1f(loc, value ? 1 : 0);
         } else if (value instanceof Vector2) {
             gl.uniform2f(loc, value.x, value.y);
         } else if (value instanceof Vector3) {
@@ -233,6 +269,10 @@ export class Shader {
             gl.activeTexture(gl.TEXTURE0 + slot);
             gl.bindTexture(gl.TEXTURE_2D, entry.texture);
         }
+        for (let point = 0; point < this.buffers.length; point += 1) {
+            const entry = this.buffers[point];
+            gl.bindBufferBase(gl.UNIFORM_BUFFER, point, entry.buffer);
+        }
         Shader.fullyBound = this;
     }
 
@@ -241,6 +281,41 @@ export class Shader {
         this.program = null;
     }
     
+}
+
+export class UniformBuffer {
+
+    constructor(floatCount) {
+        this.ubo = gl.createBuffer();
+        this.length = floatCount;
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.ubo);
+        gl.bufferData(gl.UNIFORM_BUFFER, floatCount * 4, gl.STATIC_DRAW);
+    }
+
+    upload(data) {
+        if (data.length === 0) { return; }
+        const first = data[0];
+        if (typeof first === "number") {
+            this.uploadRaw(data);
+        } else {
+            this.uploadRaw(data.flat());
+        }
+    }
+
+    uploadRaw(floatData) {
+        if (floatData.length === 0) { return; }
+        if (floatData.length > this.length) {
+            throw "Uniform buffer overflow";
+        }
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.ubo);
+        gl.bufferSubData(gl.UNIFORM_BUFFER, 0, new Float32Array(floatData));
+    }
+
+    delete() {
+        if (this.ubo !== null) { gl.deleteBuffer(this.ubo); }
+        this.ubo = null;
+    }
+
 }
 
 

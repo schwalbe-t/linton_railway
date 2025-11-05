@@ -1,5 +1,6 @@
 
 #define INSTANCE_TYPE vec4
+// #define MAX_INSTANCE_COUNT 4096
 #define MAX_INSTANCE_COUNT 256
 #include "common/instancing.h.glsl"
 #include "common/renderer.h.glsl"

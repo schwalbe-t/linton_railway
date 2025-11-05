@@ -20,7 +20,7 @@ export class Renderer {
         near: 10, far: 400
     };
     static SHADOW_MAP_RES = 2048;
-    static DEPTH_BIAS = 0.0005;
+    static DEPTH_BIAS = 0.005;
     static NORMAL_OFFSET = 0.01;
     static FOV_Y = 60;
     static NEAR_PLANE = 1;
@@ -36,6 +36,7 @@ export class Renderer {
     static INSTANCES_UNIFORM = "uInstances";
     static TEXTURE_UNIFORM = "uTexture";
     static TIME_UNIFORM = "uTime";
+    static SHADOW_MAPPING_UNIFORM = "uShadowMapping";
 
     static SHADOW_SHADER = null;
     static GEOMETRY_SHADER = null;
@@ -71,6 +72,7 @@ export class Renderer {
         ));
         this.sunDirection = new Vector3();
         this.time = 0.0;
+        this.shadowMapping = true;
     }
 
     updateSun() {
@@ -105,9 +107,11 @@ export class Renderer {
     }
 
     shadowMapped(target, f) {
-        this.target = this.shadowMap;
-        this.target.clearDepth(1);
-        f();
+        if (this.shadowMapping) {
+            this.target = this.shadowMap;
+            this.target.clearDepth(1);
+            f();
+        }
         this.target = target;
         this.target.clearColor(Renderer.CLEAR_COLOR);
         this.target.clearDepth(1);
@@ -120,6 +124,7 @@ export class Renderer {
         shader.setUniform(Renderer.SHADOW_MAP_UNIFORM, this.shadowMap.depth);
         shader.setUniform(Renderer.SUN_DIR_UNIFORM, this.sunDirection);
         shader.setUniform(Renderer.TIME_UNIFORM, this.time);
+        shader.setUniform(Renderer.SHADOW_MAPPING_UNIFORM, this.shadowMapping);
         shader.setUniform(
             Renderer.DEPTH_BIAS_UNIFORM, Renderer.DEPTH_BIAS
         );

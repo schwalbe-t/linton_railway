@@ -28,60 +28,91 @@ class HeightMap {
 
     static RIVER_BASE_ELEV = -20.0;
     static RIVER_DIST_ELEV = 10.0; // units per distance from river
+    static RIVER_APPLIC_TR = 5;
     static WATER_HEIGHT = -5;
 
     static MOUNTAIN_DIST_ELEV = 6.0; // units per distance from mountain peak
+    static MOUNTAIN_APPLIC_TR = 7;
     static ROCK_MIN_DIFF_Y = 4;
     static SNOW_MIN_Y = 5.0;
 
     static MIN_BASE_TERRAIN = -3.0;
 
-    static riverMaxElev(tileX, tileZ, details) {
-        let closestDist = Infinity;
-        for (const river of details.tesRivers) {
-            for (const seg of river.segments) {
-                const segTileX = units.toTiles(seg.x);
-                const segTileZ = units.toTiles(seg.z);
-                const segDist = Math.hypot(tileX - segTileX, tileZ - segTileZ);
-                closestDist = Math.min(closestDist, segDist);
+    apply(f) {
+        for (let tileX = 0; tileX <= this.sizeT; tileX += 1) {
+            for (let tileZ = 0; tileZ <= this.sizeT; tileZ += 1) {
+                const tileI = this.indexOf(tileX, tileZ);
+                this.elevation[tileI] = f(tileX, tileZ, this.elevation[tileI]);
             }
         }
-        return HeightMap.RIVER_BASE_ELEV
-            + closestDist * HeightMap.RIVER_DIST_ELEV;
     }
 
-    static mountainAddedElev(tileX, tileZ, details) {
-        let highestLimit = 0;
-        for (const m of details.mountains) {
-            const dist = Math.hypot(tileX - m.tileX, tileZ - m.tileZ);
-            const bLimit = m.height - dist * HeightMap.MOUNTAIN_DIST_ELEV;
-            const limit = bLimit
-                + noise.perlin2(tileX / 3.46, tileZ / 3.46) * 2
-                + noise.perlin2(tileX / 10.6, tileZ / 10.6) * 5;
-            highestLimit = Math.max(highestLimit, limit);
+    applyLocal(cTileX, cTileZ, tileR, f) {
+        const startX = cTileX - tileR;
+        const startZ = cTileZ - tileR;
+        const endX = cTileX + tileR;
+        const endZ = cTileZ + tileR;
+        for (let tileX = startX; tileX <= endX; tileX += 1) {
+            for (let tileZ = startZ; tileZ <= endZ; tileZ += 1) {
+                const tileI = this.indexOf(tileX, tileZ);
+                this.elevation[tileI] = f(tileX, tileZ, this.elevation[tileI]);
+            }
         }
-        return highestLimit;
     }
+
+    static baseNoise = () => (tileX, tileZ) => 
+        noise.perlin2(tileX /  5.25, tileZ /  5.25) *  3 +
+        noise.perlin2(tileX /  8.34, tileZ /  8.34) *  5 +
+        noise.perlin2(tileX / 32.74, tileZ / 32.74) * 10;
+
+    static minTerrainHeight = (minHeight) =>
+        (_1, _2, elev) => Math.max(elev, minHeight);
+
+    static riverSegment = (sTileX, sTileZ) => (tileX, tileZ, elev) => {
+        const dist = Math.hypot(tileX - sTileX, tileZ - sTileZ);
+        const maxElev = HeightMap.RIVER_BASE_ELEV
+            + dist * HeightMap.RIVER_DIST_ELEV;
+        return Math.min(elev, maxElev);
+    };
+
+    static mountainPeak = (mTileX, mTileZ, mHeight) => (tileX, tileZ, elev) => {
+        const dist = Math.hypot(tileX - mTileX, tileZ - mTileZ);
+        const baseAdded = mHeight - dist * HeightMap.MOUNTAIN_DIST_ELEV;
+        const added = baseAdded
+            + noise.perlin2(tileX / 3.46, tileZ / 3.46) * 2
+            + noise.perlin2(tileX / 10.6, tileZ / 10.6) * 5;
+        return elev + Math.max(added, 0.0);
+    };
 
     constructor(sizeC, details) {
         this.sizeC = sizeC;
         this.sizeT = chunks.toTiles(sizeC);
-        this.elevation = new Array((this.sizeT + 1) ** 2);
-        for (let tileX = 0; tileX <= this.sizeT; tileX += 1) {
-            for (let tileZ = 0; tileZ <= this.sizeT; tileZ += 1) {
-                const rawElev 
-                    = noise.perlin2(tileX / 5.25, tileZ / 5.25) * 3
-                    + noise.perlin2(tileX / 8.34, tileZ / 8.34) * 5
-                    + noise.perlin2(tileX / 32.74, tileZ / 32.74) * 10;
-                const elev = Math.max(rawElev, HeightMap.MIN_BASE_TERRAIN);
-                const riverElev
-                    = HeightMap.riverMaxElev(tileX, tileZ, details);
-                const mountainElev
-                    = HeightMap.mountainAddedElev(tileX, tileZ, details);
-                this.elevation[this.indexOf(tileX, tileZ)]
-                    = Math.min(elev + mountainElev, riverElev);
+        this.elevation = new Array((this.sizeT + 1) ** 2).fill(0.0);
+        this.apply(HeightMap.baseNoise());
+        this.apply(HeightMap.minTerrainHeight(HeightMap.MIN_BASE_TERRAIN));
+        for (const m of details.mountains) {
+            this.applyLocal(
+                m.tileX, m.tileZ, HeightMap.MOUNTAIN_APPLIC_TR,
+                HeightMap.mountainPeak(m.tileX, m.tileZ, m.height)
+            );
+        }
+        for (const river of details.tesRivers) {
+            for (const seg of river.segments) {
+                const sTileX = units.toTiles(seg.x);
+                const sTileZ = units.toTiles(seg.z);
+                if (!this.isInBounds(sTileX, sTileZ)) { break; }
+                this.applyLocal(
+                    Math.round(sTileX), Math.round(sTileZ),
+                    HeightMap.RIVER_APPLIC_TR,
+                    HeightMap.riverSegment(sTileX, sTileZ)
+                );
             }
         }
+    }
+
+    isInBounds(tileX, tileZ) {
+        return tileX >= 0 && tileZ >= 0
+            && tileX <= this.sizeT && tileZ <= this.sizeT;
     }
 
     indexOf(tileX, tileZ) {
@@ -89,9 +120,9 @@ class HeightMap {
     }
 
     at(tileX, tileZ) {
-        if (tileX < 0 || tileX > this.sizeT) { return 0.0; }
-        if (tileZ < 0 || tileZ > this.sizeT) { return 0.0; }
-        return this.elevation[this.indexOf(tileX, tileZ)];
+        const bTileX = Math.min(Math.max(tileX, 0), this.sizeT);
+        const bTileZ = Math.min(Math.max(tileZ, 0), this.sizeT);
+        return this.elevation[this.indexOf(bTileX, bTileZ)];
     }
 
 }

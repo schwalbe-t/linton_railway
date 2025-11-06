@@ -111,13 +111,15 @@ public sealed class Terrain
     const float RiverDCPerlinScale = 1234f;
     const float RiverDVPerlinScale = 5432f;
     const float RiverTurnProbability = 0.4f;
-    const int RiverTurnRadius = 5;
+    const int RiverStepSize = 8; // should cleanly divide chunk size in tiles 
 
     QuadSpline GenerateRiver(Random rng, FastNoise noise)
     {
         bool alongX = rng.Next(2) == 0;
-        int tileX = alongX ? 0 : rng.Next(SizeT);
-        int tileZ = !alongX ? 0 : rng.Next(SizeT);
+        int tileX = alongX ? 0
+            : rng.Next(SizeT / RiverStepSize) * RiverStepSize;
+        int tileZ = !alongX ? 0
+            : rng.Next(SizeT / RiverStepSize) * RiverStepSize;
         Vector3 start = new(tileX.TilesToUnits(), 0, tileZ.TilesToUnits());
         List<QuadSpline.Segment> segments = new();
         int dirX = alongX ? 1 : 0;
@@ -129,9 +131,8 @@ public sealed class Terrain
                 tileX * RiverDCPerlinScale, tileZ * RiverDCPerlinScale
             );
             bool changeDir = (dcn + 1f) / 2f <= RiverTurnProbability;
-            int ctrlDist = changeDir ? RiverTurnRadius : 1;
-            int ctrlX = tileX + dirX * ctrlDist;
-            int ctrlZ = tileZ + dirZ * ctrlDist;
+            int ctrlX = tileX + dirX * RiverStepSize;
+            int ctrlZ = tileZ + dirZ * RiverStepSize;
             if (changeDir)
             {
                 float dvn = noise.GetPerlin(
@@ -150,13 +151,13 @@ public sealed class Terrain
                     dirX = oldDirX ? 0 : chosenDir;
                     dirZ = oldDirX ? 1 : 0;
                 }
-                tileX = ctrlX + dirX * ctrlDist;
-                tileZ = ctrlZ + dirZ * ctrlDist;
+                tileX = ctrlX + dirX * RiverStepSize;
+                tileZ = ctrlZ + dirZ * RiverStepSize;
             }
             else
             {
-                tileX += dirX * ctrlDist;
-                tileZ += dirZ * ctrlDist;
+                tileX += dirX * RiverStepSize;
+                tileZ += dirZ * RiverStepSize;
             }
             Vector3 ctrl = new(ctrlX.TilesToUnits(), 0, ctrlZ.TilesToUnits());
             Vector3 to = new(tileX.TilesToUnits(), 0, tileZ.TilesToUnits());

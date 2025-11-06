@@ -1,10 +1,28 @@
 
 const pressingKeys = new Set();
-document.addEventListener("keydown", e => pressingKeys.add(e.code));
-document.addEventListener("keyup", e => pressingKeys.delete(e.code));
+document.addEventListener("keydown", e => {
+    if (document.activeElement.tagName === "INPUT") { return; }
+    pressingKeys.add(e.code);
+});
+document.addEventListener("keyup", e => {
+    if (document.activeElement.tagName === "INPUT") { return; }
+    pressingKeys.delete(e.code);
+});
+
+export const key = Object.freeze({
+
+    isDown: key => pressingKeys.has(key)
+
+});
+
 
 let scrollDelta = 0.0;
+let hoveringElement = null;
 document.addEventListener("wheel", e => {
+    if (hoveringElement.tagName !== "CANVAS") {
+        scrollDelta = 0.0;
+        return;
+    } 
     let delta = e.deltaY;
     switch (e.deltaMode) {
         case WheelEvent.DOM_DELTA_PIXEL: break;
@@ -14,10 +32,8 @@ document.addEventListener("wheel", e => {
     scrollDelta += delta / 100.0; // approximately one "notch"
 });
 
-export const key = Object.freeze({
-
-    isDown: key => pressingKeys.has(key)
-
+document.addEventListener("mouseover", e => {
+    hoveringElement = e.target;
 });
 
 export const mouse = Object.freeze({
@@ -26,6 +42,10 @@ export const mouse = Object.freeze({
 
 });
 
+
 export function resetInput() {
     scrollDelta = 0.0;
-}
+    if (document.activeElement.tagName === "INPUT") {
+        pressingKeys.clear();
+    }
+} 

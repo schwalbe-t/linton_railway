@@ -1,4 +1,5 @@
 
+using Linton.Game;
 using System.Collections.Concurrent;
 
 namespace Linton.Server;
@@ -17,7 +18,7 @@ public static class RoomRegistry
     /// creations by the same client IP address.
     /// </summary>
     public static readonly TimeSpan CreationCooldown = TimeSpan.FromMinutes(3);
-    
+
     /// <summary>
     /// The target number of players in a public room for the public room
     /// allocation method. If two threads happen to allocate a client into the

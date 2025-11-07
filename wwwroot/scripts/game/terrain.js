@@ -48,10 +48,10 @@ class HeightMap {
     }
 
     applyLocal(cTileX, cTileZ, tileR, f) {
-        const startX = cTileX - tileR;
-        const startZ = cTileZ - tileR;
-        const endX = cTileX + tileR;
-        const endZ = cTileZ + tileR;
+        const startX = Math.max(cTileX - tileR, 0);
+        const startZ = Math.max(cTileZ - tileR, 0);
+        const endX = Math.min(cTileX + tileR, this.sizeT);
+        const endZ = Math.min(cTileZ + tileR, this.sizeT);
         for (let tileX = startX; tileX <= endX; tileX += 1) {
             for (let tileZ = startZ; tileZ <= endZ; tileZ += 1) {
                 const tileI = this.indexOf(tileX, tileZ);
@@ -97,10 +97,16 @@ class HeightMap {
             );
         }
         for (const river of details.tesRivers) {
+            const startTileX = units.toTiles(river.start.x);
+            const startTileZ = units.toTiles(river.start.z);
+            this.applyLocal(
+                Math.round(startTileX), Math.round(startTileZ),
+                HeightMap.RIVER_APPLIC_TR,
+                HeightMap.riverSegment(startTileX, startTileZ)
+            );
             for (const seg of river.segments) {
                 const sTileX = units.toTiles(seg.x);
                 const sTileZ = units.toTiles(seg.z);
-                if (!this.isInBounds(sTileX, sTileZ)) { break; }
                 this.applyLocal(
                     Math.round(sTileX), Math.round(sTileZ),
                     HeightMap.RIVER_APPLIC_TR,

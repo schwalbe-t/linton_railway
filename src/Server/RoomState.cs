@@ -63,7 +63,7 @@ public abstract class RoomState
             if (!allReady) { return; }
             Dictionary<Guid, string> playing = room.Connected
                 .ToDictionary(e => e.Key, e => e.Value.Name);
-            var game = new GameInstance(playing);
+            var game = new GameInstance(playing, room.Settings);
             room.BroadcastEvent(new OutEvent.TerrainInfo(game.Terrain));
             room.State = new Playing(game);
         }

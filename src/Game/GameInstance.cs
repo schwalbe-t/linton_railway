@@ -14,6 +14,7 @@ public class GameInstance
     readonly Lock _lock = new();
 
     readonly Dictionary<Guid, Player> _playing;
+    public readonly RoomSettings Settings;
 
     bool _hasEnded = false;
     public bool HasEnded
@@ -25,10 +26,13 @@ public class GameInstance
 
     public readonly Terrain Terrain;
 
-    public GameInstance(Dictionary<Guid, string> playing)
+    public GameInstance(
+        Dictionary<Guid, string> playing, RoomSettings settings
+    )
     {
         _playing = playing
             .ToDictionary(p => p.Key, p => new Player(p.Key, p.Value));
+        Settings = settings;
         ushort seed = (ushort)new Random().Next(ushort.MaxValue + 1);
         _rng = new Random(seed);
         Terrain = new Terrain(playing.Count, seed, _rng);

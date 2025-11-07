@@ -93,13 +93,12 @@
 .setting-container > button {
     margin: 0;
     min-width: 6rem;
-    color: var(--text-main) !important;
 }
 .setting-container > .setting-positive {
-    color: var(--green) !important;
+    color: var(--green);
 }
 .setting-container > .setting-negative {
-    color: var(--red) !important;
+    color: var(--red);
 }
 
 #chat-container {

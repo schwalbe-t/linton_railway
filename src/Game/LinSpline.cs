@@ -58,9 +58,10 @@ public sealed record LinSpline(
     /// </summary>
     /// <param name="point">the point along the spline</param>
     /// <param name="distance">the distance to advance the point by</param>
-    /// <returns>whether the point can be further advanced</returns>
-    public bool AdvancePoint(Point point, float distance)
+    /// <returns>the distance that was advanced</returns>
+    public float AdvancePoint(Point point, float distance)
     {
+        if (distance < 0f) { return ReversePoint(point, -distance); }
         float remDist = point.Distance + distance;
         point.Distance = 0f;
         while (point.SegmentI < Segments.Count)
@@ -69,14 +70,45 @@ public sealed record LinSpline(
             if (segLen > remDist)
             {
                 point.Distance = remDist;
-                return true;
+                return distance;
             }
             remDist -= segLen;
             point.SegmentI += 1;
         }
         point.SegmentI = Segments.Count - 1;
         point.Distance = SegmentLength(point.SegmentI);
-        return false;
+        return distance - remDist;
+    }
+
+    /// <summary>
+    /// Decreases the distance along the spline of the given point by the
+    /// a given distance. 
+    /// </summary>
+    /// <param name="point">the point along the spline</param>
+    /// <param name="distance">the distance to reverse the point by</param>
+    /// <returns>the distance that was reversed</returns>
+    public float ReversePoint(Point point, float distance)
+    {
+        if (distance < 0f) { return AdvancePoint(point, -distance); }
+        if (distance <= point.Distance)
+        {
+            point.Distance -= distance;
+            return distance;
+        }
+        float remDist = distance - point.Distance;
+        point.Distance = 0f;
+        while (point.SegmentI > 0)
+        {
+            point.SegmentI -= 1;
+            float segLen = SegmentLength(point.SegmentI);
+            if (segLen > distance)
+            {
+                point.Distance = segLen - remDist;
+                return distance;
+            }
+            remDist -= segLen;
+        }
+        return distance - remDist;
     }
 
     /// <summary>

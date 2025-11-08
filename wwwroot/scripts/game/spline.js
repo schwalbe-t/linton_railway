@@ -54,7 +54,7 @@ export const linspline = Object.freeze({
         const start = segmentI === 0? spline.start
             : spline.segments[segmentI - 1];
         const end = spline.segments[segmentI];
-        return start.lerp(end, t);
+        return start.clone().lerp(end, t);
     },
 
     segmentLength: function(spline, segmentI) {
@@ -75,14 +75,14 @@ export const linspline = Object.freeze({
             const segLen = linspline.segmentLength(spline, point.segmentI);
             if (segLen > remDist) {
                 point.dist = remDist;
-                return true;
+                return dist;
             }
             remDist -= segLen;
             point.segmentI += 1;
         }
         point.segmentI = spline.segments.length - 1;
         point.dist = linspline.segmentLength(spline, point.segmentI);
-        return false;
+        return dist - remDist;
     },
 
     atPoint: function(spline, point) {

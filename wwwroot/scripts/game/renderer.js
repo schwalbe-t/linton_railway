@@ -17,7 +17,6 @@ export class Renderer {
     static SUN_OFFSET = new Vector3(1.134, 1, -0.85).normalize().scale(200);
     static SUN_NEAR = 10;
     static SUN_FAR = 400;
-    static DEPTH_BIAS = 0.005;
     static NORMAL_OFFSET = 0.01;
     static FOV_Y = 60;
     static NEAR_PLANE = 1;
@@ -72,6 +71,7 @@ export class Renderer {
         this.time = 0.0;
         this.shadowMapping = true;
         this.shadowMapRes = 256;
+        this.shadowDepthBias = 0.0;
         this.shadowMap = new Framebuffer();
         this.shadowMap.setDepth(Texture.withSize(
             256, 256, TextureFormat.DEPTH16
@@ -139,9 +139,7 @@ export class Renderer {
         shader.setUniform(Renderer.SUN_DIR_UNIFORM, this.sunDirection);
         shader.setUniform(Renderer.TIME_UNIFORM, this.time);
         shader.setUniform(Renderer.SHADOW_MAPPING_UNIFORM, this.shadowMapping);
-        shader.setUniform(
-            Renderer.DEPTH_BIAS_UNIFORM, Renderer.DEPTH_BIAS
-        );
+        shader.setUniform(Renderer.DEPTH_BIAS_UNIFORM, this.shadowDepthBias);
         shader.setUniform(
             Renderer.NORMAL_OFFSET_UNIFORM, Renderer.NORMAL_OFFSET
         );
@@ -151,6 +149,7 @@ export class Renderer {
         shader.setUniform(
             Renderer.VIEW_PROJ_UNIFORM, this.lightProj
         );
+        shader.setUniform(Renderer.TIME_UNIFORM, this.time);
     }
 
     renderInstanced(instances, shadowShader, geometryShader, maxBatchSize, f) {

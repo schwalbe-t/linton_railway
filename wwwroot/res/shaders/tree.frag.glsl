@@ -11,7 +11,7 @@ out vec4 oColor;
 const vec3 PLACEHOLDER_COLOR = vec3(1.0, 0.0, 1.0);
 const float MAX_PLACEHOLDER_DIST = 0.5;
 
-const vec3 GRADIENT_LOW = vec3(129.0, 104.0, 145.0) / 255.0;
+const vec3 GRADIENT_LOW = vec3(170.0, 116.0, 158.0) / 255.0;
 const vec3 GRADIENT_HIGH = vec3(212.0, 164.0, 136.0) / 255.0;
 
 const vec3 GRADIENT_HIGH_SNOW = vec3(209.0, 193.0, 158.0) / 255.0;
@@ -35,6 +35,5 @@ vec3 baseColor(vec3 texColor) {
 void main() {
     vec4 texColor = texture(uTexture, fTexCoords);
     if (texColor.a == 0.0) { discard; }
-    vec4 baseColor = vec4(baseColor(texColor.rgb), texColor.a);
-    oColor = baseColor;
+    oColor = vec4(baseColor(texColor.rgb), texColor.a);
 }

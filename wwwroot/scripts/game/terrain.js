@@ -1,3 +1,4 @@
+
 import { Matrix4, Vector3 } from "../libs/math.gl.js";
 import {
     Geometry, Texture, Shader, Model,
@@ -350,7 +351,7 @@ export class Terrain {
     
     static TREE_MAX_INSTANCE_COUNT = 4096;
 
-    static TREE_PR_RES = 256;
+    static TREE_PR_RES = 16;
     static TREE_PR_HEIGHT = 4.5;
     static TREE_PR_MODEL = null;
     static preRenderTree() {
@@ -419,11 +420,15 @@ export class Terrain {
     static TREE_MODEL = null;
     static PRERENDER_SHADER = null;
     static async loadResources() {
-        const textureReq = Texture.loadImage("/res/terrain.png");
+        const textureReq = Texture.loadImage(
+            "/res/textures/terrain.png"
+        );
         const waterShaderReq = Shader.loadGlsl(
             "/res/shaders/geometry.vert.glsl", "/res/shaders/water.frag.glsl"
         );
-        const waterNormalReq = Texture.loadImage("/res/water_normal.png");
+        const waterNormalReq = Texture.loadImage(
+            "/res/textures/water_normal.png"
+        );
         const treeShadowShaderReq = Shader.loadGlsl(
             "/res/shaders/tree.vert.glsl", "/res/shaders/shadows.frag.glsl"
         );
@@ -433,7 +438,7 @@ export class Terrain {
         const treeModelReq = Model.loadMeshes(Renderer.OBJ_LAYOUT, [
             { 
                 tex: "/res/models/tree.png", obj: "/res/models/tree.obj",
-                texFormat: TextureFormat.RGBA8, texFilter: TextureFilter.LINEAR
+                texFormat: TextureFormat.RGBA8, texFilter: TextureFilter.NEAREST
             }
         ]);
         const preRenderShaderReq = Shader.loadGlsl(
@@ -476,12 +481,15 @@ export class Terrain {
     static RENDER_ZMAX = +1;
 
     render(renderer) {
-        Terrain.WATER_SHADER.setUniform("uNormalMap", Terrain.WATER_NORMAL_MAP);
-        Terrain.TREE_GEOMETRY_SHADER
-            .setUniform("uSwayingTrees", !this.flatTrees);
         renderer.setGeometryUniforms(Terrain.WATER_SHADER);
         renderer.setShadowUniforms(Terrain.TREE_SHADOW_SHADER);
         renderer.setGeometryUniforms(Terrain.TREE_GEOMETRY_SHADER);
+        Terrain.WATER_SHADER
+            .setUniform("uNormalMap", Terrain.WATER_NORMAL_MAP);
+        Terrain.TREE_GEOMETRY_SHADER
+            .setUniform("uSwayingTrees", !this.flatTrees);
+        Terrain.TREE_SHADOW_SHADER
+            .setUniform("uSwayingTrees", !this.flatTrees);
         const camChunkX = units.toChunks(renderer.camera.center.x);
         const camChunkZ = units.toChunks(renderer.camera.center.z);
         for (const chunk of this.chunks) {

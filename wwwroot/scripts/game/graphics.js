@@ -3,8 +3,6 @@ import {
     Vector2, Vector3, Vector4, Matrix3, Matrix4 
 } from "../libs/math.gl.js";
 
-
-
 let renderScale = 1.0;
 let canvas = null;
 let gl = null;

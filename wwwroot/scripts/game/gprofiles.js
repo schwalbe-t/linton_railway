@@ -19,14 +19,16 @@ const PROFILES = Object.freeze([
     Object.freeze({
         renderScale: 0.75,
         shadowMapping: true,
-        shadowMapRes: 1024,
+        shadowMapRes: 2048,
+        shadowDepthBias: 0.003,
         flatTrees: true
     }),
 
     Object.freeze({
         renderScale: 1.0,
         shadowMapping: true,
-        shadowMapRes: 2048,
+        shadowMapRes: 3072,
+        shadowDepthBias: 0.002,
         flatTrees: false
     }),
 
@@ -34,6 +36,7 @@ const PROFILES = Object.freeze([
         renderScale: 1.0,
         shadowMapping: true,
         shadowMapRes: 4096,
+        shadowDepthBias: 0.001,
         flatTrees: false
     })
 
@@ -56,6 +59,7 @@ export function applyProfile(renderer, terrain) {
     renderer.shadowMapping = profile.shadowMapping;
     if (profile.shadowMapping) {
         renderer.shadowMapRes = profile.shadowMapRes;
+        renderer.shadowDepthBias = profile.shadowDepthBias;
     }
     terrain.flatTrees = profile.flatTrees;
 }

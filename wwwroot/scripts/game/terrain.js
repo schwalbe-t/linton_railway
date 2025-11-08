@@ -283,6 +283,7 @@ export class TerrainChunk {
     static TREE_CHANCE_RANGE = TerrainChunk.TREE_MAX_CHANCE
         - TerrainChunk.TREE_MIN_CHANCE;
     static TREE_CHANCE_PD = 15.23;
+    static TREE_RANDOM_HEIGHT = 1.0;
 
     buildTreeInstances(elev) {
         const treeBufferData = [];
@@ -308,7 +309,8 @@ export class TerrainChunk {
                 const minY = Math.min(...corners);
                 const maxY = Math.max(...corners);
                 if (maxY - minY >= HeightMap.ROCK_MIN_DIFF_Y) { continue; }
-                const y = minY;
+                const y = minY
+                    + Math.random() * TerrainChunk.TREE_RANDOM_HEIGHT;
                 const x = chunks.toUnits(this.chunkX)
                     + tiles.toUnits(rTileX + Math.random());
                 const z = chunks.toUnits(this.chunkZ)
@@ -368,10 +370,12 @@ export class Terrain {
         });
         s.setUniform(Renderer.VIEW_PROJ_UNIFORM, proj.multiplyRight(view));
         const color = Texture.withSize(
-            Terrain.TREE_PR_RES, Terrain.TREE_PR_RES, TextureFormat.RGBA8
+            Terrain.TREE_PR_RES, Terrain.TREE_PR_RES, TextureFormat.RGBA8,
+            TextureFilter.NEAREST
         );
         const depth = Texture.withSize(
-            Terrain.TREE_PR_RES, Terrain.TREE_PR_RES, TextureFormat.DEPTH16
+            Terrain.TREE_PR_RES, Terrain.TREE_PR_RES, TextureFormat.DEPTH16,
+            TextureFilter.NEAREST
         );
         const dest = new Framebuffer();
         dest.setColor(color);
@@ -424,7 +428,7 @@ export class Terrain {
             "/res/shaders/tree.vert.glsl", "/res/shaders/shadows.frag.glsl"
         );
         const treeGeometryShaderReq = Shader.loadGlsl(
-            "/res/shaders/tree.vert.glsl", "/res/shaders/geometry.frag.glsl"
+            "/res/shaders/tree.vert.glsl", "/res/shaders/tree.frag.glsl"
         );
         const treeModelReq = Model.loadMeshes(Renderer.OBJ_LAYOUT, [
             { 
@@ -473,6 +477,8 @@ export class Terrain {
 
     render(renderer) {
         Terrain.WATER_SHADER.setUniform("uNormalMap", Terrain.WATER_NORMAL_MAP);
+        Terrain.TREE_GEOMETRY_SHADER
+            .setUniform("uSwayingTrees", !this.flatTrees);
         renderer.setGeometryUniforms(Terrain.WATER_SHADER);
         renderer.setShadowUniforms(Terrain.TREE_SHADOW_SHADER);
         renderer.setGeometryUniforms(Terrain.TREE_GEOMETRY_SHADER);

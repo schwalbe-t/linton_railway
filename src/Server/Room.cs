@@ -136,7 +136,9 @@ public class Room(Guid id, RoomSettings settings)
         if (State is RoomState.Playing playing)
         {
             playing.Game.OnPlayerConnectionChange(playerId, isConnected: true);
-            socket.SendJson(new OutEvent.TerrainInfo(playing.Game.Terrain));
+            socket.SendJson(new OutEvent.WorldInfo(
+                playing.Game.Terrain, playing.Game.Network
+            ));
         }
         BroadcastRoomInfo();
         return true;

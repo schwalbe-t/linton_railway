@@ -8,7 +8,7 @@ import {
 } from "./graphics.js";
 import { Renderer } from "./renderer.js";
 import { Terrain } from "./terrain.js";
-import { resetInput } from "./input.js";
+import { key, resetInput } from "./input.js";
 import { TrainTracks } from "./traintracks.js";
 
 const RESOURCES = resources.load({
@@ -33,30 +33,18 @@ function init() {
     renderer = new Renderer();
 }
 
-function onUpdateTerrain(details) {
+function onReceiveWorld(event) {
     onGraphicsInit(() => {
         if (terrain !== null) {
             terrain.delete(); 
             trainTracks.delete();
         }
-        terrain = new Terrain(details);
-        trainTracks = new TrainTracks({
-            segments: [
-                { spline: {
-                    start: [0, 5, 0],
-                    segments: [
-                        { ctrl: [10, 5,  0], to: [10, 5, 10] },
-                        { ctrl: [10, 5, 15], to: [10, 5, 20] },
-                        { ctrl: [10, 5, 40], to: [30, 5, 40] },
-                        { ctrl: [40, 5, 40], to: [50, 5, 40] }
-                    ]
-                } } 
-            ]
-        });
+        terrain = new Terrain(event.terrain);
+        trainTracks = new TrainTracks(event.network);
         camera.init();
     });
 }
-window.onUpdateTerrain = onUpdateTerrain;
+window.onReceiveWorld = onReceiveWorld;
 
 gameloop.onFrame(deltaTime => {
     if (terrain !== null) {
@@ -68,10 +56,14 @@ gameloop.onFrame(deltaTime => {
         updateGraphics();
         camera.configureRenderer(renderer);
         renderer.update(defaultFramebuffer, deltaTime);
-        renderer.shadowMapped(defaultFramebuffer, () => {
+        if (gprofiles.current().shadowMapping) {
+            renderer.prepareRenderShadows();
             terrain.render(renderer);
             trainTracks.render(renderer);
-        });
+        }
+        renderer.prepareRenderGeometry(defaultFramebuffer);
+        terrain.render(renderer);
+        trainTracks.render(renderer);
     }
     resetInput();
 });

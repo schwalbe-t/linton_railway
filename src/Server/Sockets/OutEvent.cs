@@ -156,14 +156,15 @@ public abstract record OutEvent
     }
 
     /// <summary>
-    /// Used to tell clients about the current world terrain.
+    /// Used to tell clients about the current world.
     /// </summary>
     /// <param name="Terrain">the current world terrain</param>
-    public sealed record TerrainInfo(
-        [property: JsonProperty("terrain")] Terrain Terrain
+    public sealed record WorldInfo(
+        [property: JsonProperty("terrain")] Terrain Terrain,
+        [property: JsonProperty("network")] TrackNetwork Network
     ) : OutEvent
     {
-        public override string TypeString => "terrain_info";
+        public override string TypeString => "world_info";
     }
 
 }

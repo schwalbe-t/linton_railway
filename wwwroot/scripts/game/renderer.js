@@ -120,16 +120,15 @@ export class Renderer {
         this.setGeometryUniforms(Renderer.GEOMETRY_SHADER);
     }
 
-    shadowMapped(target, f) {
-        if (this.shadowMapping) {
-            this.target = this.shadowMap;
-            this.target.clearDepth(1);
-            f();
-        }
+    prepareRenderShadows() {
+        this.target = this.shadowMap;
+        this.target.clearDepth(1);
+    }
+
+    prepareRenderGeometry(target) {
         this.target = target;
         this.target.clearColor(Renderer.CLEAR_COLOR);
         this.target.clearDepth(1);
-        f();
     }
 
     setGeometryUniforms(shader) {

@@ -15,16 +15,16 @@ export class TrainTracks {
     // X+ is towards the right in the direction of low -> high
     static TRACK_VERTICES_LOW = [
         // ballast top plane
-        { x: +0.8, y:   0.0, uv: [0.00, 1.00] }, // [0] low right
-        { x: -0.8, y:   0.0, uv: [0.25, 1.00] }, // [1] low left
+        { x: +0.8, y:  0.0, uv: [0.00, 1.00] }, // [0] low right
+        { x: -0.8, y:  0.0, uv: [0.25, 1.00] }, // [1] low left
         // ballast right plane
-        { x: +0.8, y:   0.0, uv: [0.50, 1.00] }, // [2] low top
-        { x: +1.6, y: -10.0, uv: [0.50, 0.50] }, // [3] low bottom
+        { x: +0.8, y:  0.0, uv: [0.50, 1.00] }, // [2] low top
+        { x: +1.6, y: -4.0, uv: [0.50, 0.50] }, // [3] low bottom
         // ballast left plane
-        { x: -0.8, y:   0.0, uv: [1.00, 1.00] }, // [4] low top
-        { x: -1.6, y: -10.0, uv: [1.00, 0.50] }  // [5] low bottom
+        { x: -0.8, y:  0.0, uv: [1.00, 1.00] }, // [4] low top
+        { x: -1.6, y: -4.0, uv: [1.00, 0.50] }  // [5] low bottom
     ];
-    static TRACK_MAX_SEG_LEN = 1;
+    static TRACK_MAX_SEG_LEN = 2;
     static TRACK_UV_DIST = 4;
     // - 'uv' is the base tex coordinate for the vertex
     // - 'suv' is added to the tex coordinate for the vertex based on the
@@ -32,14 +32,14 @@ export class TrainTracks {
     //   (if the distance is the const uv dist, all is added, otherwise less)
     static TRACK_VERTICES_HIGH = [
         // ballast top plane
-        { x: +0.8, y:   0.0, uv: [0.00, 1.00], suv: [ 0.00, -1.00] }, // [0] high right
-        { x: -0.8, y:   0.0, uv: [0.25, 1.00], suv: [ 0.00, -1.00] }, // [1] high left
+        { x: +0.8, y:  0.0, uv: [0.00, 1.00], suv: [ 0.00, -1.00] }, // [0] high right
+        { x: -0.8, y:  0.0, uv: [0.25, 1.00], suv: [ 0.00, -1.00] }, // [1] high left
         // ballast right plane
-        { x: +0.8, y:   0.0, uv: [0.50, 1.00], suv: [+0.50,  0.00] }, // [2] high top
-        { x: +1.6, y: -10.0, uv: [0.50, 0.50], suv: [+0.50,  0.00] }, // [3] high bottom
+        { x: +0.8, y:  0.0, uv: [0.50, 1.00], suv: [+0.50,  0.00] }, // [2] high top
+        { x: +1.6, y: -4.0, uv: [0.50, 0.50], suv: [+0.50,  0.00] }, // [3] high bottom
         // ballast left plane
-        { x: -0.8, y:   0.0, uv: [1.00, 1.00], suv: [-0.50,  0.00] }, // [4] high top
-        { x: -1.6, y: -10.0, uv: [1.00, 0.50], suv: [-0.50,  0.00] }  // [5] high bottom
+        { x: -0.8, y:  0.0, uv: [1.00, 1.00], suv: [-0.50,  0.00] }, // [4] high top
+        { x: -1.6, y: -4.0, uv: [1.00, 0.50], suv: [-0.50,  0.00] }  // [5] high bottom
     ];
 
     // - 'quad' is a function that builds a quad using the given vertices
@@ -57,6 +57,7 @@ export class TrainTracks {
     static TRACK_UP = new Vector3(0, 1, 0);
 
     static generateSegmentMesh(segment) {
+        console.log(segment.spline);
         const spline = quadspline.tessellate(
             segment.spline, TrainTracks.TRACK_TESSELLATION_RES
         );
@@ -87,9 +88,8 @@ export class TrainTracks {
             const advanced = linspline.advancePoint(
                 spline, point, TrainTracks.TRACK_MAX_SEG_LEN
             );
-            if (advanced <= 0.0) { break; }
+            if (advanced <= 0.001) { break; }
             const high = linspline.atPoint(spline, point);
-            console.log(advanced, low, high);
             const lowToHigh = high.clone().subtract(low).normalize();
             const highRight = lowToHigh.cross(TrainTracks.TRACK_UP).normalize();
             if (lowRight == null) { lowRight = highRight; }

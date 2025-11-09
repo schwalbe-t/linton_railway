@@ -320,8 +320,8 @@ function onSocketEvent(event) {
             }
             break;
         }
-        case "terrain_info": {
-            onUpdateTerrain(event.terrain);
+        case "world_info": {
+            onReceiveWorld(event);
             break;
         }
     }

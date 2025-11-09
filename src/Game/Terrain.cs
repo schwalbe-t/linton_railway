@@ -27,6 +27,14 @@ public static class TerrainUnits
     public static float TilesToUnits(this float t) => t * UnitsPerTile;
     public static float ChunksToTiles(this float c) => c * TilesPerChunk;
     public static float ChunksToUnits(this float c) => c * UnitsPerChunk;
+
+    public static Vector3 UnitsToTiles(this Vector3 u) => u / UnitsPerTile;
+    public static Vector3 TilesToChunks(this Vector3 t) => t / TilesPerChunk;
+    public static Vector3 UnitsToChunks(this Vector3 u) => u / UnitsPerChunk;
+
+    public static Vector3 TilesToUnits(this Vector3 t) => t * UnitsPerTile;
+    public static Vector3 ChunksToTiles(this Vector3 c) => c * TilesPerChunk;
+    public static Vector3 ChunksToUnits(this Vector3 c) => c * UnitsPerChunk;
 }
 
 

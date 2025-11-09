@@ -19,14 +19,16 @@ const PROFILES = Object.freeze([
     Object.freeze({
         renderScale: 0.75,
         shadowMapping: true,
+        dynamicShadows: true,
         shadowMapRes: 2048,
         shadowDepthBias: 0.003,
-        flatTrees: true
+        flatTrees: false
     }),
 
     Object.freeze({
         renderScale: 1.0,
         shadowMapping: true,
+        dynamicShadows: true,
         shadowMapRes: 3072,
         shadowDepthBias: 0.002,
         flatTrees: false
@@ -35,6 +37,7 @@ const PROFILES = Object.freeze([
     Object.freeze({
         renderScale: 1.0,
         shadowMapping: true,
+        dynamicShadows: true,
         shadowMapRes: 4096,
         shadowDepthBias: 0.001,
         flatTrees: false
@@ -63,6 +66,8 @@ export function applyProfile(renderer, terrain) {
     }
     terrain.flatTrees = profile.flatTrees;
 }
+
+export const current = () => PROFILES[profileIdx];
 
 // An average delta time value over 'DT_HISTORY_LEN' frames
 // that exceeds this value causes a switch to the next worse profile.

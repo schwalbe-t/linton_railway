@@ -25,6 +25,7 @@ public class GameInstance
     readonly Random _rng;
 
     public readonly Terrain Terrain;
+    public readonly TrackNetwork Network;
 
     public GameInstance(
         Dictionary<Guid, string> playing, RoomSettings settings
@@ -36,6 +37,7 @@ public class GameInstance
         ushort seed = (ushort)new Random().Next(ushort.MaxValue + 1);
         _rng = new Random(seed);
         Terrain = new Terrain(playing.Count, seed, _rng);
+        Network = new TrackNetworkGenerator(Terrain, settings, _rng).Build();
     }
 
     /// <summary>

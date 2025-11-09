@@ -70,12 +70,25 @@ public sealed record TrackSegment(
 /// a platform in the station.
 /// Can hold one train per platform.
 /// </summary>
-public sealed class TrackStation(Vector3 minPos, Vector3 maxPos)
+/// <param name="minPos">the minimum position of the station area (u)</param>
+/// <param name="maxPos">the maximum position of the station area (u)</param>
+/// <param name="isAlongZ">'true' if station along Z axis, else X</param>
+/// <param name="platformLength">length of platforms (u)</param>
+public sealed class TrackStation(
+    Vector3 minPos, Vector3 maxPos,
+    bool isAlongZ, ushort platformCount, float platformLength
+)
 {
     [JsonProperty("minPos")]
     public readonly Vector3 MinPos = minPos;
     [JsonProperty("maxPos")]
     public readonly Vector3 MaxPos = maxPos;
+    [JsonProperty("isAlongZ")]
+    public readonly bool IsAlongZ = isAlongZ;
+    [JsonProperty("platformCount")]
+    public readonly ushort PlatformCount = platformCount;
+    [JsonProperty("platformLength")]
+    public readonly float PlatformLength = platformLength;
     [JsonIgnore]
     public List<Train?> Platforms = new();
 

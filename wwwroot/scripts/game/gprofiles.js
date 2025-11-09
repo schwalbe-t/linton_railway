@@ -22,7 +22,7 @@ const PROFILES = Object.freeze([
         dynamicShadows: true,
         shadowMapRes: 2048,
         shadowDepthBias: 0.003,
-        flatTrees: false
+        flatTrees: true
     }),
 
     Object.freeze({

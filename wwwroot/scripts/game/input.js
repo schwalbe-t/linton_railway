@@ -49,3 +49,7 @@ export function resetInput() {
         pressingKeys.clear();
     }
 } 
+
+window.addEventListener("blur", () => {
+    pressingKeys.clear();
+});

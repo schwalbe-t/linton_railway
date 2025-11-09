@@ -55,13 +55,16 @@ public sealed class TrackNetworkGenerator
 
 
     readonly struct StationEntrances(
-        int entryAX, int entryAZ, int entryBX, int entryBZ
+        int entryAX, int entryAZ, Direction entryADir,
+        int entryBX, int entryBZ, Direction entryBDir
     )
     {
         readonly int EntryAX = entryAX;
         readonly int EntryAZ = entryAZ;
         readonly int EntryBX = entryBX;
         readonly int EntryBZ = entryBZ;
+        readonly Direction EntryADir = entryADir;
+        readonly Direction EntryBDir = entryBDir;
     }
 
     readonly List<TrackStation> _stations = new();
@@ -71,7 +74,7 @@ public sealed class TrackNetworkGenerator
         => _stEntrances[z * Terrain.SizeC + x];
 
     const int MaxStationOffsetT = 5;
-    const int MinNumStationPlatforms = 1;
+    const int MinNumStationPlatforms = 2;
     const int MaxNumStationPlatforms = 3;
     const int StationEntryOffsetT = 3;
     const int PlatformSpacingT = 2;
@@ -107,7 +110,7 @@ public sealed class TrackNetworkGenerator
                 int chunkOffsetTZ = rng.Next(
                     -MaxStationOffsetT, MaxStationOffsetT + 1
                 );
-                int alongX = rng.Next(2);
+                int alongX = rng.Next() / 13 % 2;
                 int alongZ = alongX == 0 ? 1 : 0;
                 int entryRelTX = -alongX * (StationEntryOffsetT + statLenT / 2);
                 int entryRelTZ = -alongZ * (StationEntryOffsetT + statLenT / 2);
@@ -127,7 +130,10 @@ public sealed class TrackNetworkGenerator
                     - alongX * statLenU / 2f;
                 Vector3 min = new(minX, 0f, minZ);
                 Vector3 max = new(minX + statLenU, 0f, minZ + statLenU);
-                _stations.Add(new TrackStation(min, max));
+                _stations.Add(new TrackStation(
+                    min, max, isAlongZ: alongZ == 1,
+                    (ushort) numPlatforms, platformLength: statLenU
+                ));
                 // generate platforms
                 float pltBaseOffset = (statLenU - statWidthU) / 2f;
                 float pltMinX = minX + alongZ * pltBaseOffset;
@@ -146,10 +152,9 @@ public sealed class TrackNetworkGenerator
                     float pltExitZ = pltEntryZ + alongZ * statLenU;
                     Vector3 pltExit = new(pltExitX, 0, pltExitZ);
                     Vector3 pltExitMid = Vector3.Lerp(pltExit, exit, 0.5f);
-                    Vector3 pltCtrlOffset = new(
-                        alongX * StationEntryOffsetT.TilesToUnits() / 4f, 0,
-                        alongZ * StationEntryOffsetT.TilesToUnits() / 4f
-                    );
+                    Vector3 pltCtrlOffset = (
+                        new Vector3(alongX, 0, alongZ) * StationEntryOffsetT
+                    ).TilesToUnits() / 4f;
                     _splines.Add(new QuadSpline(
                         Start: entry,
                         Segments: [
@@ -174,7 +179,10 @@ public sealed class TrackNetworkGenerator
                     ));
                 }
                 _stEntrances.Add(new StationEntrances(
-                    entryTX, entryTZ, exitTX, exitTZ
+                    entryTX, entryTZ,
+                    alongX == 1 ? Direction.East : Direction.South,
+                    exitTX, exitTZ,
+                    alongX == 1 ? Direction.West : Direction.North
                 ));
             }
         }

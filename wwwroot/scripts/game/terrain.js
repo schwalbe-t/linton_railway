@@ -25,12 +25,22 @@ export const chunks = Object.freeze({
 });
 
 
-class HeightMap {
+export class HeightMap {
 
     static RIVER_BASE_ELEV = -20.0;
     static RIVER_DIST_ELEV = 10.0; // units per distance from river
     static RIVER_APPLIC_TR = 5;
     static WATER_HEIGHT = -5;
+
+    static TRACK_LIM_GROW_DIST_T = 1; // increase min/max allowed after N tiles 
+    static TRACK_BASE_MIN_ELEV = -1.0;
+    static TRACK_DIST_MIN_ELEV = 4.0; // units per distance from track
+    static TRACK_BASE_MAX_ELEV = -0.5;
+    static TRACK_DIST_MAX_ELEV = 4.0;  // units per distance from track
+    static TRACK_APPLIC_TR = 5;
+
+    static STATION_CLEARANCE_TR = 0; // in addition to min-max
+    static STATION_MIN_ELEV = -2.5;
 
     static MOUNTAIN_DIST_ELEV = 6.0; // units per distance from mountain peak
     static MOUNTAIN_APPLIC_TR = 7;
@@ -69,13 +79,6 @@ class HeightMap {
     static minTerrainHeight = (minHeight) =>
         (_1, _2, elev) => Math.max(elev, minHeight);
 
-    static riverSegment = (sTileX, sTileZ) => (tileX, tileZ, elev) => {
-        const dist = Math.hypot(tileX - sTileX, tileZ - sTileZ);
-        const maxElev = HeightMap.RIVER_BASE_ELEV
-            + dist * HeightMap.RIVER_DIST_ELEV;
-        return Math.min(elev, maxElev);
-    };
-
     static mountainPeak = (mTileX, mTileZ, mHeight) => (tileX, tileZ, elev) => {
         const dist = Math.hypot(tileX - mTileX, tileZ - mTileZ);
         const baseAdded = mHeight - dist * HeightMap.MOUNTAIN_DIST_ELEV;
@@ -85,34 +88,83 @@ class HeightMap {
         return elev + Math.max(added, 0.0);
     };
 
-    constructor(sizeC, details) {
-        this.sizeC = sizeC;
-        this.sizeT = chunks.toTiles(sizeC);
+    static trackSegment = (sTileX, sTileZ) => (tileX, tileZ, elev) => {
+        const rawDist = Math.hypot(tileX - sTileX, tileZ - sTileZ);
+        const dist = Math.max(rawDist - HeightMap.TRACK_LIM_GROW_DIST_T, 0);
+        const minElev = HeightMap.TRACK_BASE_MIN_ELEV
+            - dist * HeightMap.TRACK_DIST_MIN_ELEV;
+        const maxElev = HeightMap.TRACK_BASE_MAX_ELEV
+            + dist * HeightMap.TRACK_DIST_MAX_ELEV;
+        return Math.min(Math.max(elev, minElev), maxElev);
+    };
+
+    static riverSegment = (sTileX, sTileZ) => (tileX, tileZ, elev) => {
+        const dist = Math.hypot(tileX - sTileX, tileZ - sTileZ);
+        const maxElev = HeightMap.RIVER_BASE_ELEV
+            + dist * HeightMap.RIVER_DIST_ELEV;
+        return Math.min(elev, maxElev);
+    };
+
+    constructor(world) {
+        this.sizeC = world.terrain.sizeC;
+        this.sizeT = chunks.toTiles(this.sizeC);
         this.elevation = new Array((this.sizeT + 1) ** 2).fill(0.0);
+        this.allowTrees = new Array((this.sizeT + 1) ** 2).fill(true);
         this.apply(HeightMap.baseNoise());
         this.apply(HeightMap.minTerrainHeight(HeightMap.MIN_BASE_TERRAIN));
-        for (const m of details.mountains) {
+        for (const m of world.terrain.mountains) {
             this.applyLocal(
                 m.tileX, m.tileZ, HeightMap.MOUNTAIN_APPLIC_TR,
                 HeightMap.mountainPeak(m.tileX, m.tileZ, m.height)
             );
         }
-        for (const river of details.tesRivers) {
-            const startTileX = units.toTiles(river.start.x);
-            const startTileZ = units.toTiles(river.start.z);
-            this.applyLocal(
-                Math.round(startTileX), Math.round(startTileZ),
-                HeightMap.RIVER_APPLIC_TR,
-                HeightMap.riverSegment(startTileX, startTileZ)
-            );
-            for (const seg of river.segments) {
-                const sTileX = units.toTiles(seg.x);
-                const sTileZ = units.toTiles(seg.z);
+        for (const segment of world.network.segments) {
+            const applyPos = (x, z) => {
+                const tx = units.toTiles(x);
+                const tz = units.toTiles(z);
+                const itx = Math.round(tx);
+                const itz = Math.round(tz);
                 this.applyLocal(
-                    Math.round(sTileX), Math.round(sTileZ),
-                    HeightMap.RIVER_APPLIC_TR,
-                    HeightMap.riverSegment(sTileX, sTileZ)
+                    itx, itz,
+                    HeightMap.TRACK_APPLIC_TR,
+                    HeightMap.trackSegment(tx, tz)
                 );
+                const i = this.indexOf(itx, itz);
+                this.allowTrees[i] = true;
+            };
+            applyPos(segment.tesSpline.start.x, segment.tesSpline.start.z);
+            segment.tesSpline.segments.forEach(s => applyPos(s.x, s.z));
+        }
+        for (const river of world.terrain.tesRivers) {
+            const applyPos = (x, z) => {
+                const tx = units.toTiles(x);
+                const tz = units.toTiles(z);
+                this.applyLocal(
+                    Math.round(tx), Math.round(tz),
+                    HeightMap.RIVER_APPLIC_TR,
+                    HeightMap.riverSegment(tx, tz)
+                );
+            };
+            applyPos(river.start.x, river.start.z);
+            river.segments.forEach(s => applyPos(s.x, s.z));
+        }
+        for (const station of world.network.stations) {
+            const minTX = Math.floor(units.toTiles(station.minPos[0]))
+                - HeightMap.STATION_CLEARANCE_TR;
+            const minTZ = Math.floor(units.toTiles(station.minPos[2]))
+                - HeightMap.STATION_CLEARANCE_TR;
+            const maxTX = Math.ceil(units.toTiles(station.maxPos[0]))
+                + HeightMap.STATION_CLEARANCE_TR;
+            const maxTZ = Math.ceil(units.toTiles(station.maxPos[2]))
+                + HeightMap.STATION_CLEARANCE_TR;
+            for (let tileX = minTX; tileX <= maxTX; tileX += 1) {
+                for (let tileZ = minTZ; tileZ <= maxTZ; tileZ += 1) {
+                    const i = this.indexOf(tileX, tileZ);
+                    this.allowTrees[i] = false;
+                    this.elevation[i] = Math.max(
+                        this.elevation[i], HeightMap.STATION_MIN_ELEV
+                    );
+                }
             }
         }
     }
@@ -130,6 +182,12 @@ class HeightMap {
         const bTileX = Math.min(Math.max(tileX, 0), this.sizeT);
         const bTileZ = Math.min(Math.max(tileZ, 0), this.sizeT);
         return this.elevation[this.indexOf(bTileX, bTileZ)];
+    }
+
+    allowsTreesAt(tileX, tileZ) {
+        const bTileX = Math.min(Math.max(tileX, 0), this.sizeT);
+        const bTileZ = Math.min(Math.max(tileZ, 0), this.sizeT);
+        return this.allowTrees[this.indexOf(bTileX, bTileZ)];
     }
 
 }
@@ -301,6 +359,12 @@ export class TerrainChunk {
                 const chance = n * TerrainChunk.TREE_CHANCE_RANGE
                     + TerrainChunk.TREE_MIN_CHANCE;
                 if (Math.random() >= chance) { continue; }
+                const allowed =
+                    elev.allowsTreesAt(tileX,     tileZ    ) &&
+                    elev.allowsTreesAt(tileX + 1, tileZ    ) &&
+                    elev.allowsTreesAt(tileX,     tileZ + 1) &&
+                    elev.allowsTreesAt(tileX + 1, tileZ + 1);
+                if (!allowed) { continue; }
                 const corners = [
                     elev.at(tileX,     tileZ    ),
                     elev.at(tileX + 1, tileZ    ),
@@ -344,6 +408,14 @@ export class TerrainChunk {
 
 
 export class Terrain {
+
+    static RIVER_TESSELLATION_RES = 10;
+
+    static tessellateRivers(terrainDetails) {
+        terrainDetails.tesRivers = terrainDetails.rivers
+            .map(r => quadspline.tessellate(r, Terrain.RIVER_TESSELLATION_RES));
+    }
+
 
     static UNITS_PER_TILE = 5
     static TILES_PER_CHUNK = 32
@@ -454,17 +526,12 @@ export class Terrain {
         Terrain.preRenderTree();
     }
 
-    static RIVER_TESSELLATION_RES = 10;
-
-    constructor(details) {
+    constructor(terrainDetails, elev) {
         this.flatTrees = false;
-        details.tesRivers = details.rivers
-            .map(r => quadspline.tessellate(r, Terrain.RIVER_TESSELLATION_RES));
-        noise.seed(details.seed);
-        this.sizeC = details.sizeC;
+        noise.seed(terrainDetails.seed);
+        this.sizeC = terrainDetails.sizeC;
         this.sizeT = chunks.toTiles(this.sizeC);
         this.sizeU = chunks.toUnits(this.sizeC);
-        const elev = new HeightMap(this.sizeC, details);
         this.chunks = [];
         for (let chunkX = 0; chunkX < this.sizeC; chunkX += 1) {
             for (let chunkZ = 0; chunkZ < this.sizeC; chunkZ += 1) {

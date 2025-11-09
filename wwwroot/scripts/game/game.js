@@ -7,14 +7,14 @@ import {
     initGraphics, onGraphicsInit, updateGraphics, defaultFramebuffer
 } from "./graphics.js";
 import { Renderer } from "./renderer.js";
-import { Terrain } from "./terrain.js";
+import { HeightMap, Terrain } from "./terrain.js";
 import { key, resetInput } from "./input.js";
-import { TrainTracks } from "./traintracks.js";
+import { TrackNetwork } from "./network.js";
 
 const RESOURCES = resources.load({
     rendererResources: Renderer.loadResources(),
     terrainResources: Terrain.loadResources(),
-    trainTracksResources: TrainTracks.loadResources()
+    trainTracksResources: TrackNetwork.loadResources()
 });
 
 window.addEventListener("load", () => {
@@ -33,14 +33,17 @@ function init() {
     renderer = new Renderer();
 }
 
-function onReceiveWorld(event) {
+function onReceiveWorld(world) {
     onGraphicsInit(() => {
         if (terrain !== null) {
             terrain.delete(); 
             trainTracks.delete();
         }
-        terrain = new Terrain(event.terrain);
-        trainTracks = new TrainTracks(event.network);
+        Terrain.tessellateRivers(world.terrain);
+        TrackNetwork.tessellateTrackSegments(world.network);
+        const heightMap = new HeightMap(world);
+        terrain = new Terrain(world.terrain, heightMap);
+        trainTracks = new TrackNetwork(world.network, heightMap);
         camera.init();
     });
 }

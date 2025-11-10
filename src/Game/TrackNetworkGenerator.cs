@@ -207,10 +207,54 @@ public sealed class TrackNetworkGenerator
     readonly List<QuadSpline> _splines = new();
     readonly List<Vector3> _entrances = new();
 
+    const float DoubleTrackOffset = 3f / 2f;
+    static readonly Vector3 TrackUp = new(0, 1, 0);
+
+    static Vector3 DoubleLeft(Vector3 p, Vector3 d)
+        => p + (Vector3.Cross(TrackUp, d) * DoubleTrackOffset);
+
+    static Vector3 DoubleRight(Vector3 p, Vector3 d)
+        => p + (Vector3.Cross(d, TrackUp) * DoubleTrackOffset);
+
+    static void DoubleTrackSpline(QuadSpline s, List<QuadSpline> o)
+    {
+        if (s.Segments.Count == 0) { return; }
+        Vector3 startDir = Vector3.Normalize(s.Segments[0].Ctrl - s.Start);
+        List<QuadSpline.Segment> left = new();
+        List<QuadSpline.Segment> right = new();
+        Vector3 prev = s.Start;
+        for (int segI = 0; segI < s.Segments.Count; segI += 1)
+        {
+            QuadSpline.Segment seg = s.Segments[segI];
+            Vector3 ctrlDir = Vector3.Normalize(seg.To - prev);
+            Vector3 nextCtrl = segI < s.Segments.Count - 1
+                ? s.Segments[segI + 1].Ctrl
+                : seg.To;
+            Vector3 toDir = Vector3.Normalize(nextCtrl - seg.Ctrl);
+            left.Add(new QuadSpline.Segment(
+                Ctrl: DoubleLeft(seg.Ctrl, ctrlDir),
+                To: DoubleLeft(seg.To, toDir)
+            ));
+            right.Add(new QuadSpline.Segment(
+                Ctrl: DoubleRight(seg.Ctrl, ctrlDir),
+                To: DoubleRight(seg.To, toDir)
+            ));
+        }
+        o.Add(new QuadSpline(
+            Start: DoubleLeft(s.Start, startDir),
+            Segments: left
+        ));
+        o.Add(new QuadSpline(
+            Start: DoubleRight(s.Start, startDir),
+            Segments: right
+        ));
+    }
+
     public TrackNetwork Build()
     {
-        // TODO! turn single splines in '_splines' into double tracks
-        return new TrackNetwork(_splines, _stations, _entrances);
+        List<QuadSpline> doubled = new();
+        _splines.ForEach(s => DoubleTrackSpline(s, doubled));
+        return new TrackNetwork(doubled, _stations, _entrances);
     }
 
 }

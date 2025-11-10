@@ -5,7 +5,7 @@ import {
 } from "./graphics.js";
 import { Renderer } from "./renderer.js";
 import { linspline, quadspline } from "./spline.js";
-import { HeightMap, units } from "./terrain.js";
+import { units } from "./terrain.js";
 
 export class TrackNetwork {
 
@@ -92,8 +92,19 @@ export class TrackNetwork {
     static TRACK_UP = new Vector3(0, 1, 0);
 
     static generateSegmentMesh(segment, elev) {
+        let totalMinX = +Infinity;
+        let totalMinZ = +Infinity;
+        let totalMaxX = -Infinity;
+        let totalMaxZ = -Infinity;
+        const boundsIncludePos = pos => {
+            totalMinX = Math.min(totalMinX, pos.x);
+            totalMinZ = Math.min(totalMinZ, pos.z);
+            totalMaxX = Math.max(totalMaxX, pos.x);
+            totalMaxZ = Math.max(totalMaxZ, pos.z);
+        };
         const spline = segment.tesSpline;
         let low = spline.start;
+        boundsIncludePos(low);
         let lowRight = null;
         let point = linspline.Point();
         const vertData = [];
@@ -122,6 +133,7 @@ export class TrackNetwork {
             );
             if (advanced <= 0.001) { break; }
             const high = linspline.atPoint(spline, point);
+            boundsIncludePos(high);
             const lowToHigh = high.clone().subtract(low).normalize();
             const highRight = lowToHigh.cross(TrackNetwork.TRACK_UP)
                 .normalize();
@@ -161,7 +173,15 @@ export class TrackNetwork {
             low = high;
             lowRight = highRight;
         }
-        return new Geometry(Renderer.GEOMETRY_LAYOUT, vertData, elemData);
+        return {
+            geometry: new Geometry(
+                Renderer.GEOMETRY_LAYOUT, vertData, elemData
+            ),
+            minCX: Math.floor(units.toChunks(totalMinX)),
+            minCZ: Math.floor(units.toChunks(totalMinZ)),
+            maxCX: Math.floor(units.toChunks(totalMaxX)),
+            maxCZ: Math.floor(units.toChunks(totalMaxZ))
+        };
     }
 
     static PLATFORM_MODEL_LENGTH = 5; // in units
@@ -169,15 +189,21 @@ export class TrackNetwork {
     static PLATFORM_DISTANCE = 10; // distance between platforms in units
 
     buildStationInstances(networkDetails, elev) {
-        this.platformInstances = [];
-        this.stationInstances = [];
+        this.stations = [];
         for (const station of networkDetails.stations) {
+            const stationInst = {
+                platforms: [],
+                buildings: [],
+                chunkX: 0, chunkZ: 0
+            };
             const along = station.isAlongZ
                 ? new Vector3(0, 0, 1) : new Vector3(1, 0, 0);
             const across = station.isAlongZ
                 ? new Vector3(1, 0, 0) : new Vector3(0, 0, 1);
             const center = new Vector3(station.minPos)
-                .lerp(station.maxPos, 0.5)
+                .lerp(station.maxPos, 0.5);
+            stationInst.chunkX = Math.floor(units.toChunks(center.x));
+            stationInst.chunkZ = Math.floor(units.toChunks(center.z));
             const platformSpan = station.platformCount
                 * TrackNetwork.PLATFORM_DISTANCE;
             const platformBaseOffset = -platformSpan / 2;
@@ -197,7 +223,7 @@ export class TrackNetwork {
                     const pos = along.clone().scale(alongOffset).add(basePos);
                     const instance = new Matrix4().translate(pos);
                     if (station.isAlongZ) { instance.rotateY(Math.PI / 2); }
-                    this.platformInstances.push(instance);
+                    stationInst.platforms.push(instance);
                 }
             }
             const bdOffset = platformSpan / 2
@@ -209,27 +235,48 @@ export class TrackNetwork {
             bdPos.y = elev.at(bdTileX, bdTileZ);
             const bdInstance = new Matrix4().translate(bdPos);
             if (station.isAlongZ) { bdInstance.rotateY(Math.PI / 2); }
-            this.stationInstances.push(bdInstance);
+            stationInst.buildings.push(bdInstance);
+            this.stations.push(stationInst);
         }
     }
 
     constructor(networkDetails, elev) {
-        this.segmentMeshes = networkDetails.segments
+        this.segments = networkDetails.segments
             .map(s => TrackNetwork.generateSegmentMesh(s, elev));
         this.buildStationInstances(networkDetails, elev);
     }
 
+    static RENDER_XMIN = -2;
+    static RENDER_XMAX = +2;
+    static RENDER_ZMIN = -2;
+    static RENDER_ZMAX = +1;
+
     render(renderer) {
-        const identityInstance = [ new Matrix4() ];
-        this.segmentMeshes.forEach(m => renderer.renderGeometry(
-            m, TrackNetwork.TRACKS_TEXTURE, identityInstance
-        ));
-        renderer.renderModel(
-            TrackNetwork.PLATFORM_MODEL, this.platformInstances
-        );
-        renderer.renderModel(
-            TrackNetwork.STATION_MODEL, this.stationInstances
-        );
+        const segmentInstance = [ new Matrix4() ];
+        const camChunkX = units.toChunks(renderer.camera.center.x);
+        const camChunkZ = units.toChunks(renderer.camera.center.z);
+        const cMinChunkX = Math.floor(camChunkX) + TrackNetwork.RENDER_XMIN;
+        const cMinChunkZ = Math.floor(camChunkZ) + TrackNetwork.RENDER_ZMIN;
+        const cMaxChunkX = Math.ceil(camChunkX) + TrackNetwork.RENDER_XMAX;
+        const cMaxChunkZ = Math.ceil(camChunkZ) + TrackNetwork.RENDER_ZMAX;
+        const isOutOfBounds = (minChunkX, minChunkZ, maxChunkX, maxChunkZ) =>
+            maxChunkX < cMinChunkX || maxChunkZ < cMinChunkZ ||
+            minChunkX >= cMaxChunkX || minChunkZ >= cMaxChunkZ;
+        for (const s of this.segments) {
+            if (isOutOfBounds(s.minCX, s.minCZ, s.maxCX, s.maxCZ)) {
+                continue;
+            }
+            renderer.renderGeometry(
+                s.geometry, TrackNetwork.TRACKS_TEXTURE, segmentInstance
+            );
+        }
+        for (const s of this.stations) {
+            if (isOutOfBounds(s.chunkX, s.chunkZ, s.chunkX, s.chunkZ)) {
+                continue; 
+            }
+            renderer.renderModel(TrackNetwork.PLATFORM_MODEL, s.platforms);
+            renderer.renderModel(TrackNetwork.STATION_MODEL, s.buildings);
+        }
     }
  
     delete() {

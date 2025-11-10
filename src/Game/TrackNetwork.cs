@@ -126,7 +126,7 @@ public sealed class TrackNetwork
     /// Maps a point in the world to any segments whose "low" or "high"
     /// endings are located at that same point.
     /// </summary>
-    [JsonProperty("endings")]
+    [JsonIgnore]
     public readonly Dictionary<Vector3, List<TrackConnection>> Endings = new();
 
     /// <summary>

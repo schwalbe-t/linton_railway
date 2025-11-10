@@ -38,6 +38,7 @@ export class HeightMap {
     static TRACK_BASE_MAX_ELEV = -0.5;
     static TRACK_DIST_MAX_ELEV = 4.0;  // units per distance from track
     static TRACK_APPLIC_TR = 5;
+    static TRACK_CLEARANCE_TR = 1;
 
     static STATION_CLEARANCE_TR = 0; // in addition to min-max
     static STATION_MIN_ELEV = -2.5;
@@ -125,12 +126,16 @@ export class HeightMap {
                 const itx = Math.round(tx);
                 const itz = Math.round(tz);
                 this.applyLocal(
-                    itx, itz,
-                    HeightMap.TRACK_APPLIC_TR,
+                    itx, itz, HeightMap.TRACK_APPLIC_TR,
                     HeightMap.trackSegment(tx, tz)
                 );
-                const i = this.indexOf(itx, itz);
-                this.allowTrees[i] = true;
+                this.applyLocal(
+                    itx, itz, HeightMap.TRACK_CLEARANCE_TR,
+                    (tx, tz, e) => {
+                        this.allowTrees[this.indexOf(tx, tz)] = false;
+                        return e;
+                    }
+                );
             };
             applyPos(segment.tesSpline.start.x, segment.tesSpline.start.z);
             segment.tesSpline.segments.forEach(s => applyPos(s.x, s.z));

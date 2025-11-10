@@ -48,16 +48,16 @@ export class TrackNetwork {
     // X+ is towards the right in the direction of low -> high
     static TRACK_VERTICES_LOW = [
         // ballast top plane
-        { x: +0.8, y:  0.0, uv: [0.00, 1.00] }, // [0] low right
-        { x: -0.8, y:  0.0, uv: [0.25, 1.00] }, // [1] low left
+        { x: +0.8, y:  0.0, uv: [0.00, 1.00], buv: [ 0.00,  0.00] }, // [0] low right
+        { x: -0.8, y:  0.0, uv: [0.25, 1.00], buv: [ 0.00,  0.00] }, // [1] low left
         // ballast right plane
-        { x: +0.8, y:  0.0, uv: [0.50, 1.00] }, // [2] low top
-        { x: +1.6, y: -4.0, uv: [0.50, 0.50] }, // [3] low bottom
+        { x: +0.8, y:  0.0, uv: [0.50, 1.00], buv: [ 0.00, -0.50] }, // [2] low top
+        { x: +1.6, y: -4.0, uv: [0.50, 0.50], buv: [ 0.00, -0.50] }, // [3] low bottom
         // ballast left plane
-        { x: -0.8, y:  0.0, uv: [1.00, 1.00] }, // [4] low top
-        { x: -1.6, y: -4.0, uv: [1.00, 0.50] }  // [5] low bottom
+        { x: -0.8, y:  0.0, uv: [1.00, 1.00], buv: [ 0.00, -0.50] }, // [4] low top
+        { x: -1.6, y: -4.0, uv: [1.00, 0.50], buv: [ 0.00, -0.50] }  // [5] low bottom
     ];
-    static TRACK_MAX_SEG_LEN = 2;
+    static TRACK_MAX_SEG_LEN = 4;
     static TRACK_UV_DIST = 4;
     // - 'uv' is the base tex coordinate for the vertex
     // - 'suv' is added to the tex coordinate for the vertex based on the
@@ -65,18 +65,17 @@ export class TrackNetwork {
     //   (if the distance is the const uv dist, all is added, otherwise less)
     static TRACK_VERTICES_HIGH = [
         // ballast top plane
-        { x: +0.8, y:  0.0, uv: [0.00, 1.00], suv: [ 0.00, -1.00] }, // [0] high right
-        { x: -0.8, y:  0.0, uv: [0.25, 1.00], suv: [ 0.00, -1.00] }, // [1] high left
+        { x: +0.8, y:  0.0, uv: [0.00, 1.00], suv: [ 0.00, -1.00], buv: [ 0.00,  0.00] }, // [0] high right
+        { x: -0.8, y:  0.0, uv: [0.25, 1.00], suv: [ 0.00, -1.00], buv: [ 0.00,  0.00] }, // [1] high left
         // ballast right plane
-        { x: +0.8, y:  0.0, uv: [0.50, 1.00], suv: [+0.50,  0.00] }, // [2] high top
-        { x: +1.6, y: -4.0, uv: [0.50, 0.50], suv: [+0.50,  0.00] }, // [3] high bottom
+        { x: +0.8, y:  0.0, uv: [0.50, 1.00], suv: [+0.50,  0.00], buv: [ 0.00, -0.50] }, // [2] high top
+        { x: +1.6, y: -4.0, uv: [0.50, 0.50], suv: [+0.50,  0.00], buv: [ 0.00, -0.50] }, // [3] high bottom
         // ballast left plane
-        { x: -0.8, y:  0.0, uv: [1.00, 1.00], suv: [-0.50,  0.00] }, // [4] high top
-        { x: -1.6, y: -4.0, uv: [1.00, 0.50], suv: [-0.50,  0.00] }  // [5] high bottom
+        { x: -0.8, y:  0.0, uv: [1.00, 1.00], suv: [-0.50,  0.00], buv: [ 0.00, -0.50] }, // [4] high top
+        { x: -1.6, y: -4.0, uv: [1.00, 0.50], suv: [-0.50,  0.00], buv: [ 0.00, -0.50] }  // [5] high bottom
     ];
 
     static BRIDGE_TERRAIN_ELEV = -3.0;
-    static BRIDGE_UV_OFFSET = [0.00, -0.50];
 
     // - 'quad' is a function that builds a quad using the given vertices
     // - 'l' is a function that receives an index of an entry in
@@ -145,16 +144,18 @@ export class TrackNetwork {
             const minElev = Math.min(
                 elev.at(lowTileX, lowTileZ), elev.at(highTileX, highTileZ)
             );
-            const isBridge = minElev <= TrackNetwork.BRIDGE_TERRAIN_ELEV;
-            const bridgeU = isBridge ? TrackNetwork.BRIDGE_UV_OFFSET[0] : 0;
-            const bridgeV = isBridge ? TrackNetwork.BRIDGE_UV_OFFSET[1] : 0;
+            const isBridge = minElev <= TrackNetwork.BRIDGE_TERRAIN_ELEV
+                ? 1 : 0;
             const vertPos = (origin, right, v) => right.clone().scale(v.x)
                 .add([0, v.y, 0])
                 .add(origin);
             const buildLowVertex = i => {
                 const v = TrackNetwork.TRACK_VERTICES_LOW[i];
                 const pos = vertPos(low, lowRight, v);
-                const uv = [v.uv[0] + bridgeU, v.uv[1] + bridgeV];
+                const uv = [
+                    v.uv[0] + v.buv[0] * isBridge,
+                    v.uv[1] + v.buv[1] * isBridge
+                ];
                 return { pos, uv };
             };
             const buildHighVertex = i => {
@@ -162,8 +163,8 @@ export class TrackNetwork {
                 const pos = vertPos(high, highRight, v);
                 const uvs = advanced / TrackNetwork.TRACK_UV_DIST;
                 const uv = [
-                    v.uv[0] + v.suv[0] * uvs + bridgeU,
-                    v.uv[1] + v.suv[1] * uvs + bridgeV
+                    v.uv[0] + v.suv[0] * uvs + v.buv[0] * isBridge,
+                    v.uv[1] + v.suv[1] * uvs + v.buv[1] * isBridge
                 ];
                 return { pos, uv };
             };

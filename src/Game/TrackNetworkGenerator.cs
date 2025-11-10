@@ -13,8 +13,8 @@ public sealed class TrackNetworkGenerator
 
     static sbyte DirectionX(Direction d) => d switch
     {
-        Direction.East => -1,
-        Direction.West => +1,
+        Direction.East => +1,
+        Direction.West => -1,
         _ => 0
     };
 
@@ -28,17 +28,17 @@ public sealed class TrackNetworkGenerator
     static Direction DirectionLeft(Direction d) => d switch
     {
         Direction.North => Direction.West,
+        Direction.West => Direction.South,
         Direction.South => Direction.East,
         Direction.East => Direction.North,
-        Direction.West => Direction.South,
         _ => d
     };
 
     static Direction DirectionRight(Direction d) => d switch
     {
         Direction.North => Direction.East,
-        Direction.South => Direction.West,
         Direction.East => Direction.South,
+        Direction.South => Direction.West,
         Direction.West => Direction.North,
         _ => d
     };
@@ -68,9 +68,6 @@ public sealed class TrackNetworkGenerator
 
     readonly List<TrackStation> _stations = new();
     readonly List<StationEntrances> _stEntrances = new();
-
-    StationEntrances EntrancesAt(int x, int z)
-        => _stEntrances[z * Terrain.SizeC + x];
 
     const int MaxStationOffsetT = 5;
     const int MinNumStationPlatforms = 2;
@@ -190,7 +187,104 @@ public sealed class TrackNetworkGenerator
     }
 
 
-    struct Segment(
+    readonly List<ushort> _terrainCost;
+
+    ushort TerrainCostAt(int tileX, int tileZ)
+    {
+        if (tileX < 0 || tileX > Terrain.SizeT) { return 0; }
+        if (tileZ < 0 || tileZ > Terrain.SizeT) { return 0; }
+        return _terrainCost[tileZ * (Terrain.SizeT + 1) + tileX];
+    }
+
+    delegate uint TerrainCostFunction(int relTileX, int relTileZ);
+
+    void ApplyTerrainCostFunction(
+        int centerTX, int centerTZ, int tileR,
+        TerrainCostFunction f
+    )
+    {
+        for (int rTileX = -tileR; rTileX <= tileR; rTileX += 1)
+        {
+            int tileX = centerTX + rTileX;
+            if (tileX < 0 || tileX > Terrain.SizeT) { continue; }
+            for (int rTileZ = -tileR; rTileZ <= tileR; rTileZ += 1)
+            {
+                int tileZ = centerTZ + rTileZ;
+                if (tileZ < 0 || tileZ > Terrain.SizeT) { continue; }
+                uint cost = f(rTileX, rTileZ);
+                int i = tileZ * (Terrain.SizeT + 1) + tileX;
+                _terrainCost[i] = (ushort)Math.Max(_terrainCost[i], cost);
+            }
+        }
+    }
+
+    const int MountainCostApplicTR = 15;
+    const uint MountainHeightCostFactor = 15;
+    const uint MountainCostFalloff = 40; // per tile manhattan distance
+
+    void ComputeMountainCosts()
+    {
+        foreach (Terrain.Mountain m in Terrain.Mountains)
+        {
+            uint baseCost = (uint)(m.Height * MountainHeightCostFactor);
+            ApplyTerrainCostFunction(
+                m.TileX, m.TileZ, MountainCostApplicTR,
+                (rtx, rtz) =>
+                {
+                    uint dist = (uint)Math.Abs(rtx) + (uint)Math.Abs(rtz);
+                    uint redCost = dist * MountainCostFalloff;
+                    return baseCost - Math.Min(redCost, baseCost);
+                }
+            );
+        }
+    }
+
+    const int RiverTessellationRes = 3;
+    const int RiverCostApplicTR = 2;
+    const int RiverCost = 50;
+
+    void ComputeRiverCosts()
+    {
+        foreach (QuadSpline rq in Terrain.Rivers)
+        {
+            LinSpline r = rq.Tessellate(RiverTessellationRes);
+            void ApplyPoint(Vector3 p)
+            {
+                int centerTX = (int)Math.Round(p.X.UnitsToTiles());
+                int centerTZ = (int)Math.Round(p.Z.UnitsToTiles());
+                ApplyTerrainCostFunction(
+                    centerTX, centerTZ, RiverCostApplicTR, (_, _) => RiverCost
+                );
+            }
+            ApplyPoint(r.Start);
+            r.Segments.ForEach(ApplyPoint);
+        }
+    }
+
+    const float StationRadiusS = 1.5f; // scale for station cost radius
+    const uint StationCost = 200; // should NEVER happen
+
+    void ComputeStationCosts()
+    {
+        foreach (TrackStation s in _stations)
+        {
+            Vector3 centerPos = Vector3.Lerp(s.MinPos, s.MaxPos, 0.5f);
+            int centerTX = (int)Math.Round(centerPos.X.UnitsToTiles());
+            int centerTZ = (int)Math.Round(centerPos.Z.UnitsToTiles());
+            Vector3 rTileR = (s.MaxPos - s.MinPos).UnitsToTiles()
+                * StationRadiusS;
+            int tileR = Math.Max(
+                (int)Math.Floor(rTileR.X), (int)Math.Floor(rTileR.Z)
+            ) / 2;
+            ApplyTerrainCostFunction(
+                centerTX, centerTZ, tileR, (_, _) => StationCost
+            );
+        }
+    }
+
+
+
+    sealed class Segment(
         Direction dir, sbyte offsetX, sbyte offsetZ, Direction destDir
     )
     {
@@ -241,31 +335,50 @@ public sealed class TrackNetworkGenerator
             if (prev is null) { break; }
             int offsetTX = current.TileX - prev.TileX;
             int offsetTZ = current.TileZ - prev.TileZ;
-            Direction currO = DirectionOpposite(current.Dir);
             SegmentsAt(prev.TileX, prev.TileZ).Add(new Segment(
-                prev.Dir, (sbyte)offsetTX, (sbyte)offsetTZ, currO
+                prev.Dir, (sbyte)offsetTX, (sbyte)offsetTZ, current.Dir
             ));
             current = prev;
         }
     }
 
+    const uint DistCostFactor = 10;
+    // amount of cost to be added for every tile of less curve radius than
+    // the max curve radius
+    const uint CurveCostFactor = 10;
+
+    static uint DistanceCost(int aTX, int aTZ, int bTX, int bTZ)
+        => ((uint)Math.Abs(bTX - aTX) + (uint)Math.Abs(bTZ - aTZ))
+            * DistCostFactor;
+
     uint AddedSegmentCost(
+        Direction startDir,
         int offsetTX, int offsetTZ,
         int destTX, int destTZ,
         Direction destDir, int curveR
     )
     {
-        // TODO! proper cost computation:
-        // - exact track piece existing already is 0 cost (or opposite of it)
-        // - curve radius (0) is base cost
-        // - low curve radius (>= 1) increases cost
-        // - closeness to mountain increases cost
-        // - over river increases cost
-        uint length = (uint)Math.Abs(offsetTX) + (uint)Math.Abs(offsetTZ);
-        return length;
+        int startTX = destTX - offsetTX;
+        int startTZ = destTZ - offsetTZ;
+        bool existsSame = SegmentsAt(startTX, startTZ).Any(s =>
+            s.Dir == startDir && s.OffsetX == offsetTX && s.OffsetZ == offsetTZ
+        );
+        if (existsSame) { return 0; }
+        bool existsOpp = SegmentsAt(destTX, destTZ).Any(s =>
+            s.Dir == DirectionOpposite(destDir) &&
+            s.OffsetX == -offsetTX && s.OffsetZ == -offsetTZ
+        );
+        if (existsOpp) { return 0; }
+        uint curveCost = curveR == 0 ? 0 : (uint)(MaxCurveR - curveR);
+        uint terrainCost = Math.Max(
+            TerrainCostAt(startTX, startTZ), TerrainCostAt(destTX, destTZ)
+        );
+        return DistanceCost(startTX, startTZ, destTX, destTZ)
+            + curveCost * CurveCostFactor
+            + terrainCost;
     }
 
-    const int MinCurveR = 1;
+    const int MinCurveR = 2;
     const int MaxCurveR = 5;
 
     bool GeneratePath(
@@ -273,8 +386,7 @@ public sealed class TrackNetworkGenerator
         int endTX, int endTZ, Direction endDir
     )
     {
-        uint startDist = (uint)Math.Abs(endTX - startTX)
-            + (uint)Math.Abs(endTZ - startTZ);
+        uint startDist = DistanceCost(startTX, startTZ, endTX, endTZ);
         SearchPathNode startNode = new(
             startTX, startTZ, startDist, startDir, null, 0
         );
@@ -312,10 +424,9 @@ public sealed class TrackNetworkGenerator
                 int tileX = current.TileX + oTX;
                 int tileZ = current.TileZ + oTZ;
                 uint cost = current.Cost + AddedSegmentCost(
-                    oTX, oTZ, tileX, tileZ, newDir, curveR
+                    current.Dir, oTX, oTZ, tileX, tileZ, newDir, curveR
                 );
-                uint dist = (uint)Math.Abs(endTX - tileX)
-                    + (uint)Math.Abs(endTZ - tileZ);
+                uint dist = DistanceCost(tileX, tileZ, endTX, endTZ);
                 SearchPathNode? existing = nodes.GetValueOrDefault((
                     tileX, tileZ, newDir
                 ));
@@ -369,15 +480,15 @@ public sealed class TrackNetworkGenerator
             return;
         }
         StationEntrances a = _stEntrances[chunkZ * Terrain.SizeC + chunkX];
-        bool aEntry = rng.NextSingle() <= 0.5;
-        int aEntryX = aEntry ? a.EntryAX : a.EntryBX;
-        int aEntryZ = aEntry ? a.EntryAZ : a.EntryBZ;
-        Direction aEntryDir = aEntry ? a.EntryADir : a.EntryBDir;
+        bool aExitDown = oCX > 0 || oCZ > 0;
+        int aEntryX = aExitDown ? a.EntryBX : a.EntryAX;
+        int aEntryZ = aExitDown ? a.EntryBZ : a.EntryAZ;
+        Direction aEntryDir = aExitDown ? a.EntryBDir : a.EntryADir;
         StationEntrances b = _stEntrances[toChunkZ * Terrain.SizeC + toChunkX];
-        bool bEntry = rng.NextSingle() <= 0.5;
-        int bEntryX = bEntry ? b.EntryAX : b.EntryBX;
-        int bEntryZ = bEntry ? b.EntryAZ : b.EntryBZ;
-        Direction bEntryDir = bEntry ? b.EntryADir : b.EntryBDir;
+        bool bExitDown = oCX < 0 || oCZ < 0;
+        int bEntryX = bExitDown ? b.EntryBX : b.EntryAX;
+        int bEntryZ = bExitDown ? b.EntryBZ : b.EntryAZ;
+        Direction bEntryDir = bExitDown ? b.EntryBDir : b.EntryADir;
         GeneratePath(
             aEntryX, aEntryZ, DirectionOpposite(aEntryDir),
             bEntryX, bEntryZ, bEntryDir
@@ -391,18 +502,30 @@ public sealed class TrackNetworkGenerator
         Segment current = start;
         int currTX = startTX;
         int currTZ = startTZ;
-        while (true)
+        var startPos = new Vector3(currTX, 0, currTZ).TilesToUnits();
+        List<QuadSpline.Segment> segments = new();
+        while (!current.Generated)
         {
-            current.Generated = true;
-            // TODO! generate spline segment
+            int ctrlTX = currTX
+                + Math.Abs(DirectionX(current.Dir)) * current.OffsetX;
+            int ctrlTZ = currTZ
+                + Math.Abs(DirectionZ(current.Dir)) * current.OffsetZ;
+            var ctrlPos = new Vector3(ctrlTX, 0, ctrlTZ).TilesToUnits();
             int destTX = currTX + current.OffsetX;
             int destTZ = currTZ + current.OffsetZ;
+            var destPos = new Vector3(destTX, 0, destTZ).TilesToUnits();
+            segments.Add(new QuadSpline.Segment(ctrlPos, destPos));
+            current.Generated = true;
             var atDest = SegmentsAt(destTX, destTZ)
                 .Where(s => s.Dir == current.DestDir)
                 .ToList();
             if (atDest.Count != 1) { break; }
             current = atDest[0];
+            currTX = destTX;
+            currTZ = destTZ;
         }
+        if (segments.Count == 0) { return; }
+        _splines.Add(new QuadSpline(startPos, segments));
     }
 
     void GenerateSegmentSplines()
@@ -426,26 +549,27 @@ public sealed class TrackNetworkGenerator
         Terrain terrain, RoomSettings settings, Random rng
     )
     {
-        Console.WriteLine("Generating Network");
         Terrain = terrain;
         int segmentC = terrain.SizeT + 1;
         _segments = Enumerable.Range(0, segmentC * segmentC)
             .Select(_ => (List<Segment>?)null)
             .ToList();
         GenerateStations(settings, rng);
-        Console.WriteLine("Station Generation Complete");
+        _terrainCost = Enumerable.Range(0, segmentC * segmentC)
+            .Select(_ => (ushort)0)
+            .ToList();
+        ComputeMountainCosts();
+        ComputeRiverCosts();
+        ComputeStationCosts();
         for (int chunkZ = 0; chunkZ < terrain.SizeC; chunkZ += 1)
         {
             for (int chunkX = 0; chunkX < terrain.SizeC; chunkX += 1)
             {
-                TryConnectStations(chunkX, chunkZ, -1, 0, rng);
                 TryConnectStations(chunkX, chunkZ, +1, 0, rng);
                 TryConnectStations(chunkX, chunkZ, 0, +1, rng);
-                TryConnectStations(chunkX, chunkZ, 0, -1, rng);
             }
         }
         GenerateSegmentSplines();
-        Console.WriteLine("Network Generation Complete");
     }
 
 
@@ -464,18 +588,24 @@ public sealed class TrackNetworkGenerator
     static void DoubleTrackSpline(QuadSpline s, List<QuadSpline> o)
     {
         if (s.Segments.Count == 0) { return; }
-        Vector3 startDir = Vector3.Normalize(s.Segments[0].Ctrl - s.Start);
+        static Vector3 NormOrNull(Vector3 n)
+        {
+            float l = n.Length();
+            if (l == 0f) { return n; }
+            return n / l;
+        }
+        Vector3 startDir = NormOrNull(s.Segments[0].Ctrl - s.Start);
         List<QuadSpline.Segment> left = new();
         List<QuadSpline.Segment> right = new();
         Vector3 prev = s.Start;
         for (int segI = 0; segI < s.Segments.Count; segI += 1)
         {
             QuadSpline.Segment seg = s.Segments[segI];
-            Vector3 ctrlDir = Vector3.Normalize(seg.To - prev);
+            Vector3 ctrlDir = NormOrNull(seg.To - prev);
             Vector3 nextCtrl = segI < s.Segments.Count - 1
                 ? s.Segments[segI + 1].Ctrl
                 : seg.To;
-            Vector3 toDir = Vector3.Normalize(nextCtrl - seg.Ctrl);
+            Vector3 toDir = NormOrNull(nextCtrl - seg.Ctrl);
             left.Add(new QuadSpline.Segment(
                 Ctrl: DoubleLeft(seg.Ctrl, ctrlDir),
                 To: DoubleLeft(seg.To, toDir)
@@ -497,9 +627,10 @@ public sealed class TrackNetworkGenerator
 
     public TrackNetwork Build()
     {
-        List<QuadSpline> doubled = new();
-        _splines.ForEach(s => DoubleTrackSpline(s, doubled));
-        return new TrackNetwork(doubled, _stations, _entrances);
+        // List<QuadSpline> doubled = new();
+        // _splines.ForEach(s => DoubleTrackSpline(s, doubled));
+        // return new TrackNetwork(doubled, _stations, _entrances);
+        return new TrackNetwork(_splines, _stations, _entrances);
     }
 
 }

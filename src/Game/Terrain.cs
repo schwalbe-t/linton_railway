@@ -60,8 +60,8 @@ public sealed class Terrain
         public const float MaxHeight = 35.0f;
         public const float HeightRange = MaxHeight - MinHeight;
 
-        public const float MinChance = 0.2f;
-        public const float MaxChance = 0.75f;
+        public const float MinChance = 0.3f;
+        public const float MaxChance = 0.9f;
         public const float ChanceRange = MaxChance - MinChance;
     }
 

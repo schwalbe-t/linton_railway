@@ -14,6 +14,8 @@ const ZOOM_SPEED = 10.0;
 let position;
 let eyeDist;
 
+init();
+
 export function init() {
     position = new Vector3();
     eyeDist = DEFAULT_EYE_DIST;

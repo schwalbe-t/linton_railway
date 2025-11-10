@@ -88,7 +88,7 @@ const LOCALIZATION = Object.freeze({
  trete einem anderem Raum bei.`,
         "bg": null
     },
-    "roomCrashedTitle": {
+    "roomCrashTitle": {
         "en": "The Room Crashed :(",
         "de": "Der Raum ist Abgestürzt :(",
         "bg": null

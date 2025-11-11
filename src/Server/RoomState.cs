@@ -64,9 +64,7 @@ public abstract class RoomState
             Dictionary<Guid, string> playing = room.Connected
                 .ToDictionary(e => e.Key, e => e.Value.Name);
             var game = new GameInstance(playing, room.Settings);
-            room.BroadcastEvent(new OutEvent.WorldInfo(
-                game.Terrain, game.Network
-            ));
+            room.BroadcastRawMessage(game.WorldInfoString);
             room.State = new Playing(game);
         }
 

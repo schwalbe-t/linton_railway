@@ -1,4 +1,8 @@
 
+using Linton.Server;
+using Linton.Server.Sockets;
+using Newtonsoft.Json;
+
 namespace Linton.Game;
 
 
@@ -26,6 +30,7 @@ public class GameInstance
 
     public readonly Terrain Terrain;
     public readonly TrackNetwork Network;
+    public readonly string WorldInfoString;
 
     public GameInstance(
         Dictionary<Guid, string> playing, RoomSettings settings
@@ -38,6 +43,10 @@ public class GameInstance
         _rng = new Random(seed);
         Terrain = new Terrain(playing.Count, seed, _rng);
         Network = new TrackNetworkGenerator(Terrain, settings, _rng).Build();
+        OutEvent.WorldInfo worldInfo = new(Terrain, Network);
+        WorldInfoString = JsonConvert.SerializeObject(
+            worldInfo, JsonSettings.Settings
+        );
     }
 
     /// <summary>

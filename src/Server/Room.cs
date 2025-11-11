@@ -136,9 +136,7 @@ public class Room(Guid id, RoomSettings settings)
         if (State is RoomState.Playing playing)
         {
             playing.Game.OnPlayerConnectionChange(playerId, isConnected: true);
-            socket.SendJson(new OutEvent.WorldInfo(
-                playing.Game.Terrain, playing.Game.Network
-            ));
+            socket.SendText(playing.Game.WorldInfoString);
         }
         BroadcastRoomInfo();
         return true;
@@ -180,6 +178,16 @@ public class Room(Guid id, RoomSettings settings)
     public void BroadcastEvent(OutEvent e)
     {
         string msg = JsonConvert.SerializeObject(e, JsonSettings.Settings);
+        BroadcastRawMessage(msg);
+    }
+
+    /// <summary>
+    /// Broadcasts the given raw text message to all connected clients.
+    /// Only use with serialized out events.
+    /// </summary>
+    /// <param name="msg">the message to broadcast</param>
+    public void BroadcastRawMessage(string msg)
+    {
         foreach (User user in _connected.Values)
         {
             user.Socket.SendText(msg);

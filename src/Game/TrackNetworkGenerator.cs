@@ -11,21 +11,21 @@ public sealed class TrackNetworkGenerator
         North = 0, South = 1, East = 2, West = 3
     }
 
-    static sbyte DirectionX(Direction d) => d switch
+    static sbyte DirX(Direction d) => d switch
     {
         Direction.East => +1,
         Direction.West => -1,
         _ => 0
     };
 
-    static sbyte DirectionZ(Direction d) => d switch
+    static sbyte DirZ(Direction d) => d switch
     {
         Direction.North => -1,
         Direction.South => +1,
         _ => 0
     };
 
-    static Direction DirectionLeft(Direction d) => d switch
+    static Direction DirLeft(Direction d) => d switch
     {
         Direction.North => Direction.West,
         Direction.West => Direction.South,
@@ -34,7 +34,7 @@ public sealed class TrackNetworkGenerator
         _ => d
     };
 
-    static Direction DirectionRight(Direction d) => d switch
+    static Direction DirRight(Direction d) => d switch
     {
         Direction.North => Direction.East,
         Direction.East => Direction.South,
@@ -43,7 +43,7 @@ public sealed class TrackNetworkGenerator
         _ => d
     };
 
-    static Direction DirectionOpposite(Direction d) => d switch
+    static Direction OppDir(Direction d) => d switch
     {
         Direction.North => Direction.South,
         Direction.South => Direction.North,
@@ -51,6 +51,9 @@ public sealed class TrackNetworkGenerator
         Direction.West => Direction.East,
         _ => d
     };
+
+    static bool DirSameAxis(Direction a, Direction b)
+        => a == b || OppDir(a) == b;
 
 
     readonly struct StationEntrances(
@@ -340,9 +343,6 @@ public sealed class TrackNetworkGenerator
     }
 
     const uint DistCostFactor = 10;
-    // amount of cost to be added for every tile of less curve radius than
-    // the max curve radius
-    const uint CurveCostFactor = 5;
 
     static uint DistanceCost(int aTX, int aTZ, int bTX, int bTZ)
         => ((uint)Math.Abs(bTX - aTX) + (uint)Math.Abs(bTZ - aTZ))
@@ -358,13 +358,31 @@ public sealed class TrackNetworkGenerator
         return min;
     }
 
+    const uint SegmentOverrunCost = 10000;
+    const uint CurveCost = 1;
+
     uint AddedSegmentCost(
         Direction startDir,
         int offsetTX, int offsetTZ,
         int destTX, int destTZ,
-        Direction destDir, int curveR
+        Direction destDir, bool isCurve,
+        int pathDirX, int pathDirZ,
+        List<(int, int, Direction)> starts,
+        List<(int, int, Direction)> ends
     )
     {
+        bool undershot =
+            (pathDirX < 0 && starts.All(s => s.Item1 < destTX)) ||
+            (pathDirX > 0 && starts.All(s => s.Item1 > destTX)) ||
+            (pathDirZ < 0 && starts.All(s => s.Item2 < destTZ)) ||
+            (pathDirZ > 0 && starts.All(s => s.Item2 > destTZ));
+        if (undershot) { return SegmentOverrunCost; }
+        bool overshot =
+            (pathDirX < 0 && ends.All(e => e.Item1 > destTX)) ||
+            (pathDirX > 0 && ends.All(e => e.Item1 < destTX)) ||
+            (pathDirZ < 0 && ends.All(e => e.Item2 > destTZ)) ||
+            (pathDirZ > 0 && ends.All(e => e.Item2 < destTZ));
+        if (overshot) { return SegmentOverrunCost; }
         int startTX = destTX - offsetTX;
         int startTZ = destTZ - offsetTZ;
         bool existsSame = SegmentsAt(startTX, startTZ).Any(s =>
@@ -372,27 +390,54 @@ public sealed class TrackNetworkGenerator
         );
         if (existsSame) { return 0; }
         bool existsOpp = SegmentsAt(destTX, destTZ).Any(s =>
-            s.Dir == DirectionOpposite(destDir) &&
+            s.Dir == OppDir(destDir) &&
             s.OffsetX == -offsetTX && s.OffsetZ == -offsetTZ
         );
         if (existsOpp) { return 0; }
-        uint curveCost = curveR == 0 ? 0 : (uint)(MaxCurveR - curveR);
-        uint terrainCost = Math.Max(
-            TerrainCostAt(startTX, startTZ), TerrainCostAt(destTX, destTZ)
+        int ctrlTX = startTX + Math.Abs(DirX(startDir)) * offsetTX;
+        int ctrlTZ = startTZ + Math.Abs(DirZ(startDir)) * offsetTZ;
+        uint terrainCost = Math.Max(Math.Max(
+            TerrainCostAt(startTX, startTZ),
+            TerrainCostAt(ctrlTX, ctrlTZ)),
+            TerrainCostAt(destTX, destTZ)
         );
-        return DistanceCost(startTX, startTZ, destTX, destTZ)
-            + curveCost * CurveCostFactor
-            + terrainCost;
+        uint distCost = DistanceCost(startTX, startTZ, destTX, destTZ);
+        uint curveCost = isCurve ? CurveCost : 0;
+        return distCost + terrainCost + curveCost;
     }
 
-    const int MinCurveR = 2;
-    const int MaxCurveR = 5;
+    static void FindPathDirection(
+        List<(int, int, Direction)> starts,
+        List<(int, int, Direction)> ends,
+        out int dirX, out int dirZ
+    )
+    {
+        int mX = 0;
+        int mZ = 0;
+        foreach (var (sTX, sTZ, _) in starts)
+        {
+            foreach (var (eTX, eTZ, _) in ends)
+            {
+                int dX = eTX - sTX;
+                if (mX == 0 || Math.Abs(dX) < Math.Abs(mX)) { mX = dX; }
+                int dZ = eTZ - sTZ;
+                if (mZ == 0 || Math.Abs(dZ) < Math.Abs(mZ)) { mZ = dZ; }
+            }
+        }
+        if (Math.Abs(mX) > Math.Abs(mZ)) { mZ = 0; }
+        else { mX = 0; }
+        dirX = Math.Sign(mX);
+        dirZ = Math.Sign(mZ);
+    }
+
+    const int CurveRadius = 2;
 
     bool GeneratePath(
         List<(int, int, Direction)> starts,
         List<(int, int, Direction)> ends
     )
     {
+        FindPathDirection(starts, ends, out int pathDirX, out int pathDirZ);
         Dictionary<(int, int, Direction), SearchPathNode> nodes = new();
         foreach (var start in starts)
         {
@@ -425,12 +470,13 @@ public sealed class TrackNetworkGenerator
             bool isOob = current.TileX < 0 || current.TileX >= Terrain.SizeT
                 || current.TileZ < 0 || current.TileX >= Terrain.SizeT;
             if (isOob) { continue; }
-            void AddNode(int oTX, int oTZ, Direction newDir, int curveR)
+            void AddNode(int oTX, int oTZ, Direction newDir, bool isCurve)
             {
                 int tileX = current.TileX + oTX;
                 int tileZ = current.TileZ + oTZ;
                 uint cost = current.Cost + AddedSegmentCost(
-                    current.Dir, oTX, oTZ, tileX, tileZ, newDir, curveR
+                    current.Dir, oTX, oTZ, tileX, tileZ, newDir, isCurve,
+                    pathDirX, pathDirZ, starts, ends
                 );
                 uint dist = DistanceCost(tileX, tileZ, ends);
                 SearchPathNode? existing = nodes.GetValueOrDefault((
@@ -450,24 +496,21 @@ public sealed class TrackNetworkGenerator
                 }
             }
             AddNode(
-                DirectionX(current.Dir), DirectionZ(current.Dir),
-                current.Dir, curveR: 0
+                DirX(current.Dir), DirZ(current.Dir),
+                current.Dir, isCurve: false
             );
-            for (int r = MinCurveR; r <= MaxCurveR; r += 1)
-            {
-                Direction left = DirectionLeft(current.Dir);
-                AddNode(
-                    (DirectionX(current.Dir) + DirectionX(left)) * r,
-                    (DirectionZ(current.Dir) + DirectionZ(left)) * r,
-                    left, r
-                );
-                Direction right = DirectionRight(current.Dir);
-                AddNode(
-                    (DirectionX(current.Dir) + DirectionX(right)) * r,
-                    (DirectionZ(current.Dir) + DirectionZ(right)) * r,
-                    right, r
-                );
-            }
+            Direction left = DirLeft(current.Dir);
+            AddNode(
+                (DirX(current.Dir) + DirX(left)) * CurveRadius,
+                (DirZ(current.Dir) + DirZ(left)) * CurveRadius,
+                left, isCurve: true
+            );
+            Direction right = DirRight(current.Dir);
+            AddNode(
+                (DirX(current.Dir) + DirX(right)) * CurveRadius,
+                (DirZ(current.Dir) + DirZ(right)) * CurveRadius,
+                right, isCurve: true
+            );
         }
     }
 
@@ -488,7 +531,7 @@ public sealed class TrackNetworkGenerator
             return;
         }
         StationEntrances a = _stEntrances[chunkZ * Terrain.SizeC + chunkX];
-        var aB = (a.EntryBX, a.EntryBZ, DirectionOpposite(a.EntryBDir));
+        var aB = (a.EntryBX, a.EntryBZ, OppDir(a.EntryBDir));
         StationEntrances b = _stEntrances[toChunkZ * Terrain.SizeC + toChunkX];
         var bA = (b.EntryAX, b.EntryAZ, b.EntryADir);
         GeneratePath([aB], [bA]);
@@ -506,9 +549,9 @@ public sealed class TrackNetworkGenerator
         while (!current.Generated)
         {
             int ctrlTX = currTX
-                + Math.Abs(DirectionX(current.Dir)) * current.OffsetX;
+                + Math.Abs(DirX(current.Dir)) * current.OffsetX;
             int ctrlTZ = currTZ
-                + Math.Abs(DirectionZ(current.Dir)) * current.OffsetZ;
+                + Math.Abs(DirZ(current.Dir)) * current.OffsetZ;
             var ctrlPos = new Vector3(ctrlTX, 0, ctrlTZ).TilesToUnits();
             int destTX = currTX + current.OffsetX;
             int destTZ = currTZ + current.OffsetZ;
@@ -560,9 +603,9 @@ public sealed class TrackNetworkGenerator
         ComputeMountainCosts();
         ComputeRiverCosts();
         ComputeStationCosts();
-        for (int chunkZ = 0; chunkZ < terrain.SizeC; chunkZ += 1)
+        for (int chunkZ = -1; chunkZ < terrain.SizeC; chunkZ += 1)
         {
-            for (int chunkX = 0; chunkX < terrain.SizeC; chunkX += 1)
+            for (int chunkX = -1; chunkX < terrain.SizeC; chunkX += 1)
             {
                 TryConnectStations(chunkX, chunkZ, +1, 0, rng);
                 TryConnectStations(chunkX, chunkZ, 0, +1, rng);

@@ -187,9 +187,9 @@ public sealed class TrackNetworkGenerator
     }
 
 
-    readonly List<ushort> _terrainCost;
+    readonly List<uint> _terrainCost;
 
-    ushort TerrainCostAt(int tileX, int tileZ)
+    uint TerrainCostAt(int tileX, int tileZ)
     {
         if (tileX < 0 || tileX > Terrain.SizeT) { return 0; }
         if (tileZ < 0 || tileZ > Terrain.SizeT) { return 0; }
@@ -213,7 +213,7 @@ public sealed class TrackNetworkGenerator
                 if (tileZ < 0 || tileZ > Terrain.SizeT) { continue; }
                 uint cost = f(rTileX, rTileZ);
                 int i = tileZ * (Terrain.SizeT + 1) + tileX;
-                _terrainCost[i] = (ushort)Math.Max(_terrainCost[i], cost);
+                _terrainCost[i] = Math.Max(_terrainCost[i], cost);
             }
         }
     }
@@ -262,7 +262,7 @@ public sealed class TrackNetworkGenerator
     }
 
     const float StationRadiusS = 1.5f; // scale for station cost radius
-    const uint StationCost = 200; // should NEVER happen
+    const uint StationCost = 10000; // should NEVER happen
 
     void ComputeStationCosts()
     {
@@ -293,9 +293,6 @@ public sealed class TrackNetworkGenerator
         public readonly Direction Dir = dir;
         public readonly Direction DestDir = destDir;
         public bool Generated = false;
-
-        sbyte CtrlX => (sbyte)(Math.Abs(DirectionX(Dir)) * OffsetX);
-        sbyte CtrlZ => (sbyte)(Math.Abs(DirectionZ(Dir)) * OffsetZ);
     }
 
     readonly List<List<Segment>?> _segments;
@@ -345,11 +342,21 @@ public sealed class TrackNetworkGenerator
     const uint DistCostFactor = 10;
     // amount of cost to be added for every tile of less curve radius than
     // the max curve radius
-    const uint CurveCostFactor = 10;
+    const uint CurveCostFactor = 5;
 
     static uint DistanceCost(int aTX, int aTZ, int bTX, int bTZ)
         => ((uint)Math.Abs(bTX - aTX) + (uint)Math.Abs(bTZ - aTZ))
             * DistCostFactor;
+
+    static uint DistanceCost(int tX, int tZ, List<(int, int, Direction)> ends)
+    {
+        uint min = uint.MaxValue;
+        foreach (var (eTX, eTZ, _) in ends)
+        {
+            min = Math.Min(min, DistanceCost(tX, tZ, eTX, eTZ));
+        }
+        return min;
+    }
 
     uint AddedSegmentCost(
         Direction startDir,
@@ -382,18 +389,20 @@ public sealed class TrackNetworkGenerator
     const int MaxCurveR = 5;
 
     bool GeneratePath(
-        int startTX, int startTZ, Direction startDir,
-        int endTX, int endTZ, Direction endDir
+        List<(int, int, Direction)> starts,
+        List<(int, int, Direction)> ends
     )
     {
-        uint startDist = DistanceCost(startTX, startTZ, endTX, endTZ);
-        SearchPathNode startNode = new(
-            startTX, startTZ, startDist, startDir, null, 0
-        );
-        Dictionary<(int, int, Direction), SearchPathNode> nodes = new()
+        Dictionary<(int, int, Direction), SearchPathNode> nodes = new();
+        foreach (var start in starts)
         {
-            { (startTX, startTZ, startDir), startNode }
-        };
+            var (startTX, startTZ, startDir) = start;
+            uint startDist = DistanceCost(startTX, startTZ, ends);
+            SearchPathNode node = new(
+                startTX, startTZ, startDist, startDir, null, 0
+            );
+            nodes.Add(start, node);
+        }
         while (true)
         {
             SearchPathNode? current = null;
@@ -407,10 +416,7 @@ public sealed class TrackNetworkGenerator
                 cheapestCost = cost;
             }
             if (current is null) { return false; } // no path found
-            bool isEnd = current.Dir == endDir
-                && current.TileX == endTX
-                && current.TileZ == endTZ;
-            if (isEnd)
+            if (ends.Any(e => e == (current.TileX, current.TileZ, current.Dir)))
             {
                 BuildFoundPath(current);
                 return true;
@@ -426,7 +432,7 @@ public sealed class TrackNetworkGenerator
                 uint cost = current.Cost + AddedSegmentCost(
                     current.Dir, oTX, oTZ, tileX, tileZ, newDir, curveR
                 );
-                uint dist = DistanceCost(tileX, tileZ, endTX, endTZ);
+                uint dist = DistanceCost(tileX, tileZ, ends);
                 SearchPathNode? existing = nodes.GetValueOrDefault((
                     tileX, tileZ, newDir
                 ));
@@ -472,7 +478,9 @@ public sealed class TrackNetworkGenerator
     {
         int toChunkX = chunkX + oCX;
         int toChunkZ = chunkZ + oCZ;
-        bool oob = toChunkX < 0 || toChunkX >= Terrain.SizeC
+        bool oob = chunkX < 0 || chunkX >= Terrain.SizeC
+            || chunkZ < 0 || chunkZ >= Terrain.SizeC
+            || toChunkX < 0 || toChunkX >= Terrain.SizeC
             || toChunkZ < 0 || toChunkZ >= Terrain.SizeC;
         if (oob)
         {
@@ -480,19 +488,10 @@ public sealed class TrackNetworkGenerator
             return;
         }
         StationEntrances a = _stEntrances[chunkZ * Terrain.SizeC + chunkX];
-        bool aExitDown = oCX > 0 || oCZ > 0;
-        int aEntryX = aExitDown ? a.EntryBX : a.EntryAX;
-        int aEntryZ = aExitDown ? a.EntryBZ : a.EntryAZ;
-        Direction aEntryDir = aExitDown ? a.EntryBDir : a.EntryADir;
+        var aB = (a.EntryBX, a.EntryBZ, DirectionOpposite(a.EntryBDir));
         StationEntrances b = _stEntrances[toChunkZ * Terrain.SizeC + toChunkX];
-        bool bExitDown = oCX < 0 || oCZ < 0;
-        int bEntryX = bExitDown ? b.EntryBX : b.EntryAX;
-        int bEntryZ = bExitDown ? b.EntryBZ : b.EntryAZ;
-        Direction bEntryDir = bExitDown ? b.EntryBDir : b.EntryADir;
-        GeneratePath(
-            aEntryX, aEntryZ, DirectionOpposite(aEntryDir),
-            bEntryX, bEntryZ, bEntryDir
-        );
+        var bA = (b.EntryAX, b.EntryAZ, b.EntryADir);
+        GeneratePath([aB], [bA]);
     }
 
 
@@ -556,7 +555,7 @@ public sealed class TrackNetworkGenerator
             .ToList();
         GenerateStations(settings, rng);
         _terrainCost = Enumerable.Range(0, segmentC * segmentC)
-            .Select(_ => (ushort)0)
+            .Select(_ => (uint)0)
             .ToList();
         ComputeMountainCosts();
         ComputeRiverCosts();

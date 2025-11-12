@@ -1,7 +1,5 @@
 
-using System.IO.Compression;
 using System.Numerics;
-using System.Security.Cryptography.X509Certificates;
 
 namespace Linton.Game;
 
@@ -360,6 +358,7 @@ public sealed class TrackNetworkGenerator
         return min;
     }
 
+    const uint SegmentOverrunCost = 10000;
     const uint SegmentReverseCost = 10000;
     const uint CurveCost = 1;
 
@@ -368,9 +367,23 @@ public sealed class TrackNetworkGenerator
         int offsetTX, int offsetTZ,
         int destTX, int destTZ,
         Direction destDir, bool isCurve,
-        Direction generalPathDir
+        Direction pathDir,
+        List<(int, int, Direction)> starts,
+        List<(int, int, Direction)> ends
     )
     {
+        bool undershot =
+            (pathDir == Direction.West && starts.All(s => s.Item1 < destTX)) ||
+            (pathDir == Direction.East && starts.All(s => s.Item1 > destTX)) ||
+            (pathDir == Direction.North && starts.All(s => s.Item2 < destTZ)) ||
+            (pathDir == Direction.South && starts.All(s => s.Item2 > destTZ));
+        if (undershot) { return SegmentOverrunCost; }
+        bool overshot =
+            (pathDir == Direction.West && ends.All(e => e.Item1 > destTX)) ||
+            (pathDir == Direction.East && ends.All(e => e.Item1 < destTX)) ||
+            (pathDir == Direction.North && ends.All(e => e.Item2 > destTZ)) ||
+            (pathDir == Direction.South && ends.All(e => e.Item2 < destTZ));
+        if (overshot) { return SegmentOverrunCost; }
         int startTX = destTX - offsetTX;
         int startTZ = destTZ - offsetTZ;
         bool existsSame = SegmentsAt(startTX, startTZ).Any(s =>
@@ -382,7 +395,7 @@ public sealed class TrackNetworkGenerator
             s.OffsetX == -offsetTX && s.OffsetZ == -offsetTZ
         );
         if (existsOpp) { return 0; }
-        if (startDir == OppDir(generalPathDir))
+        if (startDir == OppDir(pathDir))
         {
             return SegmentReverseCost;
         }
@@ -468,7 +481,7 @@ public sealed class TrackNetworkGenerator
                 int tileZ = current.TileZ + oTZ;
                 uint cost = current.Cost + AddedSegmentCost(
                     current.Dir, oTX, oTZ, tileX, tileZ, newDir, isCurve,
-                    generalPathDir
+                    generalPathDir, starts, ends
                 );
                 uint dist = DistanceCost(tileX, tileZ, ends);
                 SearchPathNode? existing = nodes.GetValueOrDefault((
@@ -508,7 +521,7 @@ public sealed class TrackNetworkGenerator
 
 
     void TryConnectStations(
-        int chunkX, int chunkZ, Direction dir, Random rng
+        int chunkX, int chunkZ, Direction dir
     )
     {
         bool startOob = chunkX < 0 || chunkX >= Terrain.SizeC
@@ -620,8 +633,8 @@ public sealed class TrackNetworkGenerator
         {
             for (int chunkX = -1; chunkX < terrain.SizeC; chunkX += 1)
             {
-                TryConnectStations(chunkX, chunkZ, Direction.East, rng);
-                TryConnectStations(chunkX, chunkZ, Direction.South, rng);
+                TryConnectStations(chunkX, chunkZ, Direction.East);
+                TryConnectStations(chunkX, chunkZ, Direction.South);
             }
         }
         GenerateSegmentSplines();

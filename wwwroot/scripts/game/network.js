@@ -281,7 +281,7 @@ export class TrackNetwork {
     }
  
     delete() {
-        this.segmentMeshes.forEach(m => m.delete());
+        this.segments.forEach(s => s.geometry.delete());
     }
 
 }

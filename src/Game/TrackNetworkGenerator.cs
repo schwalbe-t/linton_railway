@@ -1,5 +1,7 @@
 
+using System.IO.Compression;
 using System.Numerics;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Linton.Game;
 
@@ -358,7 +360,7 @@ public sealed class TrackNetworkGenerator
         return min;
     }
 
-    const uint SegmentOverrunCost = 10000;
+    const uint SegmentReverseCost = 10000;
     const uint CurveCost = 1;
 
     uint AddedSegmentCost(
@@ -366,23 +368,9 @@ public sealed class TrackNetworkGenerator
         int offsetTX, int offsetTZ,
         int destTX, int destTZ,
         Direction destDir, bool isCurve,
-        int pathDirX, int pathDirZ,
-        List<(int, int, Direction)> starts,
-        List<(int, int, Direction)> ends
+        Direction generalPathDir
     )
     {
-        bool undershot =
-            (pathDirX < 0 && starts.All(s => s.Item1 < destTX)) ||
-            (pathDirX > 0 && starts.All(s => s.Item1 > destTX)) ||
-            (pathDirZ < 0 && starts.All(s => s.Item2 < destTZ)) ||
-            (pathDirZ > 0 && starts.All(s => s.Item2 > destTZ));
-        if (undershot) { return SegmentOverrunCost; }
-        bool overshot =
-            (pathDirX < 0 && ends.All(e => e.Item1 > destTX)) ||
-            (pathDirX > 0 && ends.All(e => e.Item1 < destTX)) ||
-            (pathDirZ < 0 && ends.All(e => e.Item2 > destTZ)) ||
-            (pathDirZ > 0 && ends.All(e => e.Item2 < destTZ));
-        if (overshot) { return SegmentOverrunCost; }
         int startTX = destTX - offsetTX;
         int startTZ = destTZ - offsetTZ;
         bool existsSame = SegmentsAt(startTX, startTZ).Any(s =>
@@ -394,6 +382,10 @@ public sealed class TrackNetworkGenerator
             s.OffsetX == -offsetTX && s.OffsetZ == -offsetTZ
         );
         if (existsOpp) { return 0; }
+        if (startDir == OppDir(generalPathDir))
+        {
+            return SegmentReverseCost;
+        }
         int ctrlTX = startTX + Math.Abs(DirX(startDir)) * offsetTX;
         int ctrlTZ = startTZ + Math.Abs(DirZ(startDir)) * offsetTZ;
         uint terrainCost = Math.Max(Math.Max(
@@ -406,10 +398,9 @@ public sealed class TrackNetworkGenerator
         return distCost + terrainCost + curveCost;
     }
 
-    static void FindPathDirection(
+    static Direction FindPathDirection(
         List<(int, int, Direction)> starts,
-        List<(int, int, Direction)> ends,
-        out int dirX, out int dirZ
+        List<(int, int, Direction)> ends
     )
     {
         int mX = 0;
@@ -424,20 +415,21 @@ public sealed class TrackNetworkGenerator
                 if (mZ == 0 || Math.Abs(dZ) < Math.Abs(mZ)) { mZ = dZ; }
             }
         }
-        if (Math.Abs(mX) > Math.Abs(mZ)) { mZ = 0; }
-        else { mX = 0; }
-        dirX = Math.Sign(mX);
-        dirZ = Math.Sign(mZ);
+        if (Math.Abs(mX) > Math.Abs(mZ))
+        {
+            return mX > 0 ? Direction.East : Direction.West;
+        }
+        return mZ > 0 ? Direction.South : Direction.North;
     }
 
-    const int CurveRadius = 2;
+    const int CurveRadius = 3;
 
     bool GeneratePath(
         List<(int, int, Direction)> starts,
         List<(int, int, Direction)> ends
     )
     {
-        FindPathDirection(starts, ends, out int pathDirX, out int pathDirZ);
+        Direction generalPathDir = FindPathDirection(starts, ends);
         Dictionary<(int, int, Direction), SearchPathNode> nodes = new();
         foreach (var start in starts)
         {
@@ -476,7 +468,7 @@ public sealed class TrackNetworkGenerator
                 int tileZ = current.TileZ + oTZ;
                 uint cost = current.Cost + AddedSegmentCost(
                     current.Dir, oTX, oTZ, tileX, tileZ, newDir, isCurve,
-                    pathDirX, pathDirZ, starts, ends
+                    generalPathDir
                 );
                 uint dist = DistanceCost(tileX, tileZ, ends);
                 SearchPathNode? existing = nodes.GetValueOrDefault((
@@ -516,25 +508,46 @@ public sealed class TrackNetworkGenerator
 
 
     void TryConnectStations(
-        int chunkX, int chunkZ, int oCX, int oCZ, Random rng
+        int chunkX, int chunkZ, Direction dir, Random rng
     )
     {
-        int toChunkX = chunkX + oCX;
-        int toChunkZ = chunkZ + oCZ;
-        bool oob = chunkX < 0 || chunkX >= Terrain.SizeC
-            || chunkZ < 0 || chunkZ >= Terrain.SizeC
-            || toChunkX < 0 || toChunkX >= Terrain.SizeC
-            || toChunkZ < 0 || toChunkZ >= Terrain.SizeC;
-        if (oob)
+        bool startOob = chunkX < 0 || chunkX >= Terrain.SizeC
+            || chunkZ < 0 || chunkZ >= Terrain.SizeC;
+        int destCX = chunkX + DirX(dir);
+        int destCZ = chunkZ + DirZ(dir);
+        bool destOob = destCX < 0 || destCX >= Terrain.SizeC
+            || destCZ < 0 || destCZ >= Terrain.SizeC;
+        if (!startOob && !destOob)
         {
-            // TODO! connect to edges and register entry / exit point
+            StationEntrances a = _stEntrances[chunkZ * Terrain.SizeC + chunkX];
+            var aB = (a.EntryBX, a.EntryBZ, OppDir(a.EntryBDir));
+            StationEntrances b = _stEntrances[destCZ * Terrain.SizeC + destCX];
+            var bA = (b.EntryAX, b.EntryAZ, b.EntryADir);
+            GeneratePath([aB], [bA]);
             return;
         }
-        StationEntrances a = _stEntrances[chunkZ * Terrain.SizeC + chunkX];
-        var aB = (a.EntryBX, a.EntryBZ, OppDir(a.EntryBDir));
-        StationEntrances b = _stEntrances[toChunkZ * Terrain.SizeC + toChunkX];
-        var bA = (b.EntryAX, b.EntryAZ, b.EntryADir);
-        GeneratePath([aB], [bA]);
+        if (destOob && !startOob)
+        {
+            StationEntrances a = _stEntrances[chunkZ * Terrain.SizeC + chunkX];
+            var aB = (a.EntryBX, a.EntryBZ, OppDir(a.EntryBDir));
+            var edgeTX = dir == Direction.South ? a.EntryBX
+                : (a.EntryBX.TilesToChunks() + 1).ChunksToTiles();
+            var edgeTZ = dir == Direction.East ? a.EntryBZ
+                : (a.EntryBZ.TilesToChunks() + 1).ChunksToTiles();
+            GeneratePath([aB], [(edgeTX, edgeTZ, dir)]);
+            return;
+        }
+        if (startOob && !destOob)
+        {
+            StationEntrances b = _stEntrances[destCZ * Terrain.SizeC + destCX];
+            var bA = (b.EntryAX, b.EntryAZ, b.EntryADir);
+            var edgeTX = dir == Direction.South ? b.EntryAX
+                : b.EntryAX.TilesToChunks().ChunksToTiles();
+            var edgeTZ = dir == Direction.East ? b.EntryAZ
+                : b.EntryAZ.TilesToChunks().ChunksToTiles();
+            GeneratePath([(edgeTX, edgeTZ, dir)], [bA]);
+            return;
+        }
     }
 
 
@@ -607,8 +620,8 @@ public sealed class TrackNetworkGenerator
         {
             for (int chunkX = -1; chunkX < terrain.SizeC; chunkX += 1)
             {
-                TryConnectStations(chunkX, chunkZ, +1, 0, rng);
-                TryConnectStations(chunkX, chunkZ, 0, +1, rng);
+                TryConnectStations(chunkX, chunkZ, Direction.East, rng);
+                TryConnectStations(chunkX, chunkZ, Direction.South, rng);
             }
         }
         GenerateSegmentSplines();

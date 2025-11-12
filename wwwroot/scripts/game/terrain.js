@@ -9,19 +9,26 @@ import {
 import { Renderer } from "./renderer.js";
 import { quadspline } from "./spline.js";
 
-export const units = Object.freeze({
-    toTiles:  u => u / Terrain.UNITS_PER_TILE,
-    toChunks: u => u / Terrain.UNITS_PER_CHUNK
+
+const UNITS_PER_TILE = 5;
+const TILES_PER_CHUNK = 40;
+
+export const chunks = Object.freeze({
+    toUnits: c => c * units.PER_CHUNK,
+    toTiles: c => c * tiles.PER_CHUNK
 });
 
 export const tiles = Object.freeze({
-    toUnits:  t => t * Terrain.UNITS_PER_TILE,
-    toChunks: t => t / Terrain.TILES_PER_CHUNK
+    PER_CHUNK: TILES_PER_CHUNK,
+    toUnits:  t => t * units.PER_TILE,
+    toChunks: t => t / tiles.PER_CHUNK
 });
 
-export const chunks = Object.freeze({
-    toUnits: c => c * Terrain.UNITS_PER_CHUNK,
-    toTiles: c => c * Terrain.TILES_PER_CHUNK
+export const units = Object.freeze({
+    PER_TILE: UNITS_PER_TILE,
+    PER_CHUNK: UNITS_PER_TILE * TILES_PER_CHUNK,
+    toTiles:  u => u / units.PER_TILE,
+    toChunks: u => u / units.PER_CHUNK
 });
 
 
@@ -420,11 +427,6 @@ export class Terrain {
         terrainDetails.tesRivers = terrainDetails.rivers
             .map(r => quadspline.tessellate(r, Terrain.RIVER_TESSELLATION_RES));
     }
-
-
-    static UNITS_PER_TILE = 5
-    static TILES_PER_CHUNK = 32
-    static UNITS_PER_CHUNK = Terrain.UNITS_PER_TILE * Terrain.TILES_PER_CHUNK
     
     static TREE_MAX_INSTANCE_COUNT = 4096;
 

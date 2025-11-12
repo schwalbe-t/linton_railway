@@ -9,7 +9,7 @@ namespace Linton.Game;
 public static class TerrainUnits
 {
     public const int UnitsPerTile = 5;
-    public const int TilesPerChunk = 32;
+    public const int TilesPerChunk = 40;
     public const int UnitsPerChunk = UnitsPerTile * TilesPerChunk;
 
     public static int UnitsToTiles(this int u) => u / UnitsPerTile;

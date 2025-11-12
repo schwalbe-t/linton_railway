@@ -644,7 +644,15 @@ public sealed class TrackNetworkGenerator
     readonly List<QuadSpline> _splines = new();
     readonly List<Vector3> _entrances = new();
 
-    const float DoubleTrackOffset = 3f / 2f;
+    void TryRegisterEntrance(Vector3 p)
+    {
+        bool isOnEdge = p.X == 0 || p.Z == 0
+            || p.X == Terrain.SizeU || p.Z == Terrain.SizeU;
+        if (!isOnEdge) { return; }
+        _entrances.Add(p);
+    }
+
+    const float DoubleTrackOffset = 2.5f / 2f;
     static readonly Vector3 TrackUp = new(0, 1, 0);
 
     static Vector3 DoubleLeft(Vector3 p, Vector3 d)
@@ -653,52 +661,42 @@ public sealed class TrackNetworkGenerator
     static Vector3 DoubleRight(Vector3 p, Vector3 d)
         => p + (Vector3.Cross(d, TrackUp) * DoubleTrackOffset);
 
-    static void DoubleTrackSpline(QuadSpline s, List<QuadSpline> o)
+    void DoubleTrackSpline(QuadSpline s, List<QuadSpline> o)
     {
         if (s.Segments.Count == 0) { return; }
-        static Vector3 NormOrNull(Vector3 n)
-        {
-            float l = n.Length();
-            if (l == 0f) { return n; }
-            return n / l;
-        }
-        Vector3 startDir = NormOrNull(s.Segments[0].Ctrl - s.Start);
+        Vector3 startDir = Vector3.Normalize(s.Segments[0].Ctrl - s.Start);
         List<QuadSpline.Segment> left = new();
         List<QuadSpline.Segment> right = new();
         Vector3 prev = s.Start;
         for (int segI = 0; segI < s.Segments.Count; segI += 1)
         {
             QuadSpline.Segment seg = s.Segments[segI];
-            Vector3 ctrlDir = NormOrNull(seg.To - prev);
-            Vector3 nextCtrl = segI < s.Segments.Count - 1
-                ? s.Segments[segI + 1].Ctrl
-                : seg.To;
-            Vector3 toDir = NormOrNull(nextCtrl - seg.Ctrl);
-            left.Add(new QuadSpline.Segment(
-                Ctrl: DoubleLeft(seg.Ctrl, ctrlDir),
-                To: DoubleLeft(seg.To, toDir)
-            ));
-            right.Add(new QuadSpline.Segment(
-                Ctrl: DoubleRight(seg.Ctrl, ctrlDir),
-                To: DoubleRight(seg.To, toDir)
-            ));
+            bool hasNext = segI < s.Segments.Count - 1;
+            Vector3 ctrlDir = Vector3.Normalize(seg.To - prev);
+            Vector3 nextCtrl = hasNext ? s.Segments[segI + 1].Ctrl : seg.To;
+            Vector3 currCtrl = nextCtrl != seg.Ctrl ? seg.Ctrl : prev;
+            Vector3 toDir = Vector3.Normalize(nextCtrl - currCtrl);
+            Vector3 leftCtrl = DoubleLeft(seg.Ctrl, ctrlDir);
+            Vector3 leftTo = DoubleLeft(seg.To, toDir);
+            left.Add(new QuadSpline.Segment(leftCtrl, leftTo));
+            Vector3 rightCtrl = DoubleRight(seg.Ctrl, ctrlDir);
+            Vector3 rightTo = DoubleRight(seg.To, toDir);
+            right.Add(new QuadSpline.Segment(rightCtrl, rightTo));
+            if (!hasNext) { TryRegisterEntrance(leftTo); }
+            prev = seg.To;
         }
-        o.Add(new QuadSpline(
-            Start: DoubleLeft(s.Start, startDir),
-            Segments: left
-        ));
-        o.Add(new QuadSpline(
-            Start: DoubleRight(s.Start, startDir),
-            Segments: right
-        ));
+        Vector3 leftStart = DoubleLeft(s.Start, startDir);
+        o.Add(new QuadSpline(Start: leftStart, Segments: left));
+        Vector3 rightStart = DoubleRight(s.Start, startDir);
+        o.Add(new QuadSpline(Start: rightStart, Segments: right));
+        TryRegisterEntrance(rightStart);
     }
 
     public TrackNetwork Build()
     {
-        // List<QuadSpline> doubled = new();
-        // _splines.ForEach(s => DoubleTrackSpline(s, doubled));
-        // return new TrackNetwork(doubled, _stations, _entrances);
-        return new TrackNetwork(_splines, _stations, _entrances);
+        List<QuadSpline> doubled = new();
+        _splines.ForEach(s => DoubleTrackSpline(s, doubled));
+        return new TrackNetwork(doubled, _stations, _entrances);
     }
 
 }

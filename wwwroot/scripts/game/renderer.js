@@ -4,6 +4,7 @@ import {
     ObjProperty, DepthTesting, Framebuffer, Texture, TextureFormat, Shader,
     UniformBuffer
 } from "./graphics.js";
+import { tiles } from "./terrain.js";
 
 export class Renderer {
 
@@ -33,6 +34,8 @@ export class Renderer {
     static TEXTURE_UNIFORM = "uTexture";
     static TIME_UNIFORM = "uTime";
     static SHADOW_MAPPING_UNIFORM = "uShadowMapping";
+    static TILE_REGIONS_UNIFORM = "uTileRegions";
+    static WORLD_SIZE_U_UNIFORM = "uWorldSizeU";
 
     static SHADOW_SHADER = null;
     static GEOMETRY_SHADER = null;
@@ -76,6 +79,7 @@ export class Renderer {
         this.shadowMap.setDepth(Texture.withSize(
             256, 256, TextureFormat.DEPTH16
         ));
+        this.network = null;
     }
 
     updateSun() {
@@ -104,8 +108,9 @@ export class Renderer {
         this.viewProj = projection.multiplyRight(view);
     }
 
-    update(target, deltaTime = 0.0) {
+    update(target, network, deltaTime = 0.0) {
         this.target = target;
+        this.network = network;
         this.time += deltaTime;
         if (this.shadowMap.depth.width !== this.shadowMapRes) {
             const oldDepth = this.shadowMap.depth;
@@ -142,6 +147,14 @@ export class Renderer {
         shader.setUniform(
             Renderer.NORMAL_OFFSET_UNIFORM, Renderer.NORMAL_OFFSET
         );
+        if (this.network !== null) {
+            shader.setUniform(
+                Renderer.TILE_REGIONS_UNIFORM, this.network.tileRegionTex
+            );
+            shader.setUniform(
+                Renderer.WORLD_SIZE_U_UNIFORM, tiles.toUnits(this.network.sizeT)
+            );
+        }
     }
 
     setShadowUniforms(shader) {

@@ -551,7 +551,7 @@ export class Terrain {
 
     static RENDER_XMIN = -2;
     static RENDER_XMAX = +2;
-    static RENDER_ZMIN = -2;
+    static RENDER_ZMIN = -1;
     static RENDER_ZMAX = +1;
 
     render(renderer) {

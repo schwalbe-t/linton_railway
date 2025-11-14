@@ -43,7 +43,7 @@ function onReceiveWorld(world) {
         TrackNetwork.tessellateTrackSegments(world.network);
         const heightMap = new HeightMap(world);
         terrain = new Terrain(world.terrain, heightMap);
-        trainTracks = new TrackNetwork(world.network, heightMap);
+        trainTracks = new TrackNetwork(world, heightMap);
         camera.init();
     });
 }
@@ -58,7 +58,7 @@ gameloop.onFrame(deltaTime => {
         gprofiles.applyProfile(renderer, terrain);
         updateGraphics();
         camera.configureRenderer(renderer);
-        renderer.update(defaultFramebuffer, deltaTime);
+        renderer.update(defaultFramebuffer, trainTracks, deltaTime);
         if (gprofiles.current().shadowMapping) {
             renderer.prepareRenderShadows();
             terrain.render(renderer);

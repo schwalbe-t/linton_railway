@@ -6,7 +6,7 @@ layout(location = 0) in vec3 vLocalPosition;
 layout(location = 1) in vec3 vLocalNormal;
 layout(location = 2) in vec2 vTexCoords;
 
-#define MAX_INSTANCE_COUNT 4096
+#define MAX_INSTANCE_COUNT 4000
 layout(std140) uniform uInstances {
     vec4 instances[MAX_INSTANCE_COUNT];
 };

@@ -1,11 +1,14 @@
 
 import { Matrix4, Vector3 } from "../libs/math.gl.js";
 import {
-    Geometry, Model, Texture, TextureFilter, TextureFormat
+    DepthTesting,
+    Framebuffer,
+    Geometry, Model, Shader, Texture, TextureFilter, TextureFormat,
+    UniformBuffer
 } from "./graphics.js";
 import { Renderer } from "./renderer.js";
 import { linspline, quadspline } from "./spline.js";
-import { units } from "./terrain.js";
+import { chunks, HeightMap, tiles, units } from "./terrain.js";
 
 export class TrackNetwork {
 
@@ -23,6 +26,7 @@ export class TrackNetwork {
     static TRACKS_TEXTURE = null;
     static PLATFORM_MODEL = null;
     static STATION_MODEL = null;
+    static TILE_REGION_COMP_SHADER = null;
     static async loadResources() {
         const tracksTextureReq = Texture.loadImage(
             "/res/textures/tracks.png", TextureFormat.RGBA8
@@ -40,9 +44,14 @@ export class TrackNetwork {
                 texFormat: TextureFormat.RGBA8, texFilter: TextureFilter.LINEAR
             }
         ]);
+        const tileRegionCompShaderReq = Shader.loadGlsl(
+            "/res/shaders/tile_region.vert.glsl",
+            "/res/shaders/tile_region.frag.glsl"
+        );
         TrackNetwork.TRACKS_TEXTURE = await tracksTextureReq;
         TrackNetwork.PLATFORM_MODEL = await platformModelReq;
         TrackNetwork.STATION_MODEL = await stationModelReq;
+        TrackNetwork.TILE_REGION_COMP_SHADER = await tileRegionCompShaderReq;
     }
 
     // X+ is towards the right in the direction of low -> high
@@ -241,15 +250,67 @@ export class TrackNetwork {
         }
     }
 
-    constructor(networkDetails, elev) {
-        this.segments = networkDetails.segments
+    constructor(worldDetails, elev) {
+        this.segments = worldDetails.network.segments
             .map(s => TrackNetwork.generateSegmentMesh(s, elev));
-        this.buildStationInstances(networkDetails, elev);
+        this.buildStationInstances(worldDetails.network, elev);
+        this.sizeT = chunks.toTiles(worldDetails.terrain.sizeC);
+        this.renderTileRegionTex(
+            worldDetails.terrain.sizeC, worldDetails.network
+        );
+    }
+
+    static REGION_MAX_WORLD_CHUNK_LEN = 60;
+    static STATION_CLIENT_OWNED = 1.0;
+    static STATION_ENEMY_OWNED = 0.5;
+    static STATION_UNOWNED = 0.0;
+
+    renderTileRegionTex(sizeC, network) {
+        const sizeT = this.sizeT;
+        this.tileRegionTex = Texture.withSize(sizeT, sizeT, TextureFormat.R8);
+        this.tileRegionFb = new Framebuffer();
+        this.tileRegionFb.setColor(this.tileRegionTex);
+        const stationBuffSize = TrackNetwork.REGION_MAX_WORLD_CHUNK_LEN ** 2;
+        this.stationLocBuff = new UniformBuffer(stationBuffSize * 4);
+        const stationData = new Array(stationBuffSize * 4).fill(0.0);
+        for (const station of network.stations) {
+            const center = new Vector3(station.minPos)
+                .lerp(station.maxPos, 0.5);
+            const tileX = Math.floor(units.toTiles(center.x));
+            const tileZ = Math.floor(units.toTiles(center.z));
+            const chunkX = Math.floor(tiles.toChunks(tileX));
+            const chunkZ = Math.floor(tiles.toChunks(tileZ));
+            const offset = (chunkZ * sizeC + chunkX) * 4;
+            stationData[offset + 0] = tileX;
+            stationData[offset + 1] = tileZ;
+            stationData[offset + 2] = Math.random() < 0.5
+                ? TrackNetwork.STATION_CLIENT_OWNED
+                : Math.random() < 0.5
+                ? TrackNetwork.STATION_ENEMY_OWNED
+                : TrackNetwork.STATION_UNOWNED;
+        }
+        this.stationLocBuff.upload(stationData);
+        const s = TrackNetwork.TILE_REGION_COMP_SHADER;
+        s.setUniform("uStations", this.stationLocBuff);
+        s.setUniform("uWorldSizeC", sizeC);
+        s.setUniform("uTilesPerChunk", tiles.PER_CHUNK);
+        this.tileStationMapG = new Geometry([2, 2], [
+            -1, +1,   0,     sizeT, // [0] top left
+            +1, +1,   sizeT, sizeT, // [1] top right
+            -1, -1,   0,     0,     // [2] bottom left
+            +1, -1,   sizeT, 0      // [3] bottom right
+        ], [
+            0, 2, 3, // top left -> bottom left -> bottom right
+            0, 3, 1  // top left -> bottom right -> top right
+        ]);
+        this.tileStationMapG.render(
+            s, this.tileRegionFb, 1, DepthTesting.DISABLED
+        );
     }
 
     static RENDER_XMIN = -2;
     static RENDER_XMAX = +2;
-    static RENDER_ZMIN = -2;
+    static RENDER_ZMIN = -1;
     static RENDER_ZMAX = +1;
 
     render(renderer) {
@@ -282,6 +343,11 @@ export class TrackNetwork {
  
     delete() {
         this.segments.forEach(s => s.geometry.delete());
+        this.tileRegionFb.setColor(null);
+        this.tileRegionTex.delete();
+        this.tileRegionFb.delete();
+        this.stationLocBuff.delete();
+        this.tileStationMapG.delete();
     }
 
 }

@@ -3,8 +3,8 @@ import { Vector3 } from "../libs/math.gl.js";
 import { key, mouse } from "./input.js";
 
 const MIN_EYE_DIST = 100;
-const DEFAULT_EYE_DIST = 140;
-const MAX_EYE_DIST = 180;
+const DEFAULT_EYE_DIST = 135;
+const MAX_EYE_DIST = 170;
 const EYE_OFFSET = new Vector3(0, 1.5, 1);
 const UP = new Vector3(0, 1, 0);
 

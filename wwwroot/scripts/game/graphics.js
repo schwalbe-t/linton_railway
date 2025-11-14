@@ -35,16 +35,12 @@ export function updateGraphics() {
     const width = canvas.clientWidth * renderScale;
     const height = canvas.clientHeight * renderScale;
     if (canvas.width !== width || canvas.height !== height) {
-        // size of canvas has changed
         canvas.width = width;
         canvas.height = height;
-        if (AbstractFramebuffer.bound === defaultFramebuffer) {
-            // Re-bind the default buffer if it's the current buffer
-            // since its size has changed and we therefore need another call
-            // to 'gl.viewport'
-            AbstractFramebuffer.bound = null;
-        }
+        AbstractFramebuffer.bound = null;
     }
+    Shader.partlyBound = null;
+    Shader.fullyBound = null;
 }
 
 
@@ -711,10 +707,10 @@ export class Framebuffer extends AbstractFramebuffer {
     }
 
     delete() {
+        if (this.color !== null) { this.setColor(null); }
+        if (this.depth !== null) { this.setDepth(null); }
         if (this.fbo !== null) { gl.deleteFramebuffer(this.fbo); }
         this.fbo = null;
-        this.color = null;
-        this.depth = null;
     }
 
 }

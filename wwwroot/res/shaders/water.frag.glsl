@@ -1,6 +1,7 @@
 
 #include "common/renderer.h.glsl"
 #include "common/shading.h.glsl"
+#include "common/regions.h.glsl"
 
 in vec3 fWorldPosition;
 in vec3 fWorldNormal;
@@ -39,9 +40,11 @@ void main() {
     );
     vec3 worldNormal = tangentNormal.yzx;
     float diffuse = diffuseIntensityOf(worldNormal);
+    vec4 shaded = vec4(0.0, 0.0, 0.0, 0.0);
     if (diffuse >= HIGHLIGHT_MIN_DIFFUSE) {
-        oColor = HIGHLIGHT_COLOR;
+        shaded = HIGHLIGHT_COLOR;
     } else {
-        oColor = shadedColor(BASE_COLOR, fWorldPosition, worldNormal);
+        shaded = shadedColor(BASE_COLOR, fWorldPosition, worldNormal);
     }
+    oColor = withRegionColorFilter(shaded, fWorldPosition);
 }

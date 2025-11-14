@@ -1,14 +1,12 @@
 
 import { Matrix4, Vector3 } from "../libs/math.gl.js";
 import {
-    DepthTesting,
-    Framebuffer,
-    Geometry, Model, Shader, Texture, TextureFilter, TextureFormat,
-    UniformBuffer
+    DepthTesting, Framebuffer, UniformBuffer,
+    Geometry, Model, Shader, Texture, TextureFilter, TextureFormat
 } from "./graphics.js";
 import { Renderer } from "./renderer.js";
 import { linspline, quadspline } from "./spline.js";
-import { chunks, HeightMap, tiles, units } from "./terrain.js";
+import { chunks, tiles, units } from "./terrain.js";
 
 export class TrackNetwork {
 
@@ -267,7 +265,9 @@ export class TrackNetwork {
 
     renderTileRegionTex(sizeC, network) {
         const sizeT = this.sizeT;
-        this.tileRegionTex = Texture.withSize(sizeT, sizeT, TextureFormat.R8);
+        this.tileRegionTex = Texture.withSize(
+            sizeT, sizeT, TextureFormat.R8, TextureFilter.LINEAR
+        );
         this.tileRegionFb = new Framebuffer();
         this.tileRegionFb.setColor(this.tileRegionTex);
         const stationBuffSize = TrackNetwork.REGION_MAX_WORLD_CHUNK_LEN ** 2;
@@ -343,9 +343,8 @@ export class TrackNetwork {
  
     delete() {
         this.segments.forEach(s => s.geometry.delete());
-        this.tileRegionFb.setColor(null);
-        this.tileRegionTex.delete();
         this.tileRegionFb.delete();
+        this.tileRegionTex.delete();
         this.stationLocBuff.delete();
         this.tileStationMapG.delete();
     }

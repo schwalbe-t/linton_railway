@@ -31,6 +31,7 @@ public class GameInstance
     public readonly Terrain Terrain;
     public readonly TrackNetwork Network;
     public readonly string WorldInfoString;
+    public readonly RegionMap RegionMap;
 
     public GameInstance(
         Dictionary<Guid, string> playing, RoomSettings settings
@@ -47,6 +48,7 @@ public class GameInstance
         WorldInfoString = JsonConvert.SerializeObject(
             worldInfo, JsonSettings.Settings
         );
+        RegionMap = new RegionMap(Terrain.SizeT, Network.Stations);
     }
 
     /// <summary>

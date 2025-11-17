@@ -324,5 +324,9 @@ function onSocketEvent(event) {
             onReceiveWorld(event);
             break;
         }
+        case "game_update": {
+            console.log(event.state);
+            break;
+        }
     }
 }

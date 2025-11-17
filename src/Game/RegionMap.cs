@@ -1,5 +1,6 @@
 
 using System.Numerics;
+using Newtonsoft.Json;
 
 namespace Linton.Game;
 
@@ -12,13 +13,17 @@ public sealed class RegionMap
     public sealed class Region
     {
         /// <summary>The X position of the region station in tiles.</summary>
+        [JsonIgnore]
         public readonly int TileX;
         /// <summary>The Z position of the region station in tiles.</summary>
+        [JsonIgnore]
         public readonly int TileZ;
         
         readonly Lock _lock = new();
+        [JsonProperty("owner")]
         Player? _owner = null;
         /// <summary>The current owner of the region (or else null)</summary>
+        [JsonIgnore]
         public Player? Owner { get { lock(_lock) { return _owner; } } }
 
         /// <summary>
@@ -60,20 +65,24 @@ public sealed class RegionMap
     }
 
     /// <summary>The size of the region map in chunks.</summary>
+    [JsonIgnore]
     public readonly int SizeC;
     /// <summary>The size of the region map in tiles.</summary>
+    [JsonIgnore]
     public readonly int SizeT;
 
     /// <summary>
     /// Maps each chunk coordinate (row-major, i = cz * SizeC + cx)
     /// to the corresponding region.
     /// </summary>
+    [JsonProperty("chunks")]
     readonly List<Region> _chunks;
 
     /// <summary>
     /// Maps each tile coordinate (row-major, i = tz * SizeT + tx)
     /// to the index of the corresponding region in '_chunks'.
     /// </summary>
+    [JsonIgnore]
     readonly List<ushort> _tiles;
 
     /// <summary>
@@ -159,5 +168,15 @@ public sealed class RegionMap
         ushort ri = _tiles[tz * SizeT + tx];
         return _chunks[ri];
     }
+
+    /// <summary>
+    /// Returns the region associated with the given chunk coordinates.
+    /// The chunk coordinates must be inside the world bounds.
+    /// </summary>
+    /// <param name="chunkX">the x coordinate of the chunk</param>
+    /// <param name="chunkZ">the z coordinate of the chunk</param>
+    /// <returns>the region associated with that chunk</returns>
+    public Region RegionOfChunk(int chunkX, int chunkZ)
+        => _chunks[chunkZ * SizeC + chunkX];
 
 }

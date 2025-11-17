@@ -1,4 +1,5 @@
 
+using System.Text.Json;
 using Linton.Server;
 using Linton.Server.Sockets;
 using Newtonsoft.Json;
@@ -31,7 +32,8 @@ public class GameInstance
     public readonly Terrain Terrain;
     public readonly TrackNetwork Network;
     public readonly string WorldInfoString;
-    public readonly RegionMap RegionMap;
+
+    public readonly GameState State;
 
     public GameInstance(
         Dictionary<Guid, string> playing, RoomSettings settings
@@ -48,7 +50,61 @@ public class GameInstance
         WorldInfoString = JsonConvert.SerializeObject(
             worldInfo, JsonSettings.Settings
         );
-        RegionMap = new RegionMap(Terrain.SizeT, Network.Stations);
+        State = new GameState(Terrain.SizeT, Network);
+        AllocateRegionsAll();
+    }
+
+    /// <summary>
+    /// Allocates a region to every player in the game. This randomly assigns
+    /// each player a region as close to the center of the map as possible.
+    /// </summary>
+    private void AllocateRegionsAll()
+    {
+        List<Player> unallocated = _playing.Values.ToList();
+        while (unallocated.Count > 0)
+        {
+            int i;
+            lock(_lock) {
+                i = _rng.Next(unallocated.Count);
+            }
+            AllocateRegion(unallocated[i]);
+            unallocated.RemoveAt(i);
+        }
+    }
+
+    /// <summary>
+    /// Allocates a region to the given player, as close to the center
+    /// of the map as possible.
+    /// </summary>
+    /// <param name="p">the player to allocate a region to</param>
+    private void AllocateRegion(Player p)
+    {
+        bool TryAllocate(int cx, int cz)
+        {
+            bool oob = cx < 0 || cx >= Terrain.SizeC
+                || cz < 0 || cz >= Terrain.SizeC;
+            if (oob) { throw new Exception("Failed to find region"); }
+            RegionMap.Region region = State.Regions.RegionOfChunk(cx, cz);
+            return region.TryTake(p);
+        }
+        int centerX = Terrain.SizeC / 2;
+        int centerZ = Terrain.SizeC / 2;
+        for(int rad = 0; ; rad += 1)
+        {
+            for (int rcx = -rad; rcx <= +rad; rcx += 1)
+            {
+                for (int rcz = -rad; rcz <= +rad; rcz += 1)
+                {
+                    if (Math.Abs(rcx) == rad || Math.Abs(rcz) == rad)
+                    {
+                        if (TryAllocate(centerX + rcx, centerZ + rcz))
+                        {
+                            return;
+                        }
+                    }
+                }
+            }   
+        }
     }
 
     /// <summary>

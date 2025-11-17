@@ -167,4 +167,15 @@ public abstract record OutEvent
         public override string TypeString => "world_info";
     }
 
+    /// <summary>
+    /// Used to tell clients about changes to the world state.
+    /// </summary>
+    /// <param name="State">the new, updated world state</param>
+    public sealed record GameUpdate(
+        [property: JsonProperty("state")] GameState State
+    ) : OutEvent
+    {
+        public override string TypeString => "game_update";    
+    }
+
 }

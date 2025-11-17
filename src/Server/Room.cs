@@ -115,6 +115,10 @@ public class Room(Guid id, RoomSettings settings)
             if (newOwner != Owner) { Owner = newOwner; }
         }
         State.Update(this);
+        if (State is RoomState.Playing playing)
+        {
+            BroadcastEvent(new OutEvent.GameUpdate(playing.Game.State));
+        }
     }
 
     /// <summary>

@@ -188,7 +188,9 @@ export class TrackNetwork {
             minCX: Math.floor(units.toChunks(totalMinX)),
             minCZ: Math.floor(units.toChunks(totalMinZ)),
             maxCX: Math.floor(units.toChunks(totalMaxX)),
-            maxCZ: Math.floor(units.toChunks(totalMaxZ))
+            maxCZ: Math.floor(units.toChunks(totalMaxZ)),
+            connectsLow: segment.connectsLow,
+            connectsHigh: segment.connectsHigh
         };
     }
 

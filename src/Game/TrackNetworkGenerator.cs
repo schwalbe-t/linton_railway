@@ -585,7 +585,8 @@ public sealed class TrackNetworkGenerator
             segments.Add(new QuadSpline.Segment(ctrlPos, destPos));
             current.Generated = true;
             var atDest = SegmentsAt(destTX, destTZ)
-                .Where(s => s.Dir == current.DestDir)
+                .Where(s => DirSameAxis(s.Dir, current.DestDir))
+                .Where(s => s != current)
                 .ToList();
             if (atDest.Count != 1) { break; }
             current = atDest[0];

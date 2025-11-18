@@ -59,6 +59,31 @@ public sealed record TrackSegment(
     /// </summary>
     [JsonIgnore]
     public Vector3 HighEnd => QSpline.Segments.Last().To;
+
+    /// <summary>
+    /// Returns a vector pointing away from the low or high end of the segment.
+    /// </summary>
+    /// <param name="isHighEnd">relative to low (false) or high (true)</param>
+    /// <returns>vector pointing away from selected end</returns>
+    public Vector3 GetEndDir(bool isHighEnd)
+    {
+        if (QSpline.Segments.Count == 0) { return new Vector3(); }
+        Vector3 a;
+        Vector3 b;
+        if (isHighEnd)
+        {
+            a = QSpline.Segments.Count >= 2
+                ? QSpline.Segments[^2].To
+                : QSpline.Start;
+            b = QSpline.Segments[^1].To;
+        }
+        else
+        {
+            a = QSpline.Segments[0].To;
+            b = QSpline.Start;
+        }
+        return Vector3.Normalize(b - a);
+    }
 }
 
 
@@ -203,13 +228,23 @@ public sealed class TrackNetwork
     /// </summary>
     /// <param name="segment">the segment</param>
     /// <param name="segmentIdx">the segment index</param>
-    void FindConnections(TrackSegment segment, int segmentIdx)
+    void FindConnections(TrackSegment segment)
     {
+        bool Aligns(TrackConnection c, Vector3 selfDir)
+        {
+            TrackSegment seg = Segments[c.SegmentIdx];
+            Vector3 segDir = seg.GetEndDir(c.ToHighEnd);
+            // end directions need to be facing each other
+            // ('GetEndDir' points away from segment end)
+            return Vector3.Dot(segDir, selfDir) < 0;
+        }
+        Vector3 lowDir = segment.GetEndDir(isHighEnd: false);
         segment.ConnectsLow.AddRange(
-            FindEndings(segment.LowEnd).Where(c => c.SegmentIdx != segmentIdx)
+            FindEndings(segment.LowEnd).Where(c => Aligns(c, lowDir))
         );
+        Vector3 highDir = segment.GetEndDir(isHighEnd: true);
         segment.ConnectsHigh.AddRange(
-            FindEndings(segment.HighEnd).Where(c => c.SegmentIdx != segmentIdx)
+            FindEndings(segment.HighEnd).Where(c => Aligns(c, highDir))
         );
     }
 
@@ -232,7 +267,7 @@ public sealed class TrackNetwork
         }
         for (int segmentIdx = 0; segmentIdx < Segments.Count; segmentIdx += 1)
         {
-            FindConnections(Segments[segmentIdx], segmentIdx);
+            FindConnections(Segments[segmentIdx]);
         }
         entrances.ForEach(e => Entrances.AddRange(FindEndings(e)));
     }

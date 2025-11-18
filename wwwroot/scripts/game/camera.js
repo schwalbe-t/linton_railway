@@ -14,14 +14,15 @@ const ZOOM_SPEED = 10.0;
 let position;
 let eyeDist;
 
-init();
+init(null);
 
-export function init() {
-    position = new Vector3();
+export function init(terrain = null) {
+    position = terrain === null ? new Vector3()
+        : new Vector3(terrain.sizeU, 0, terrain.sizeU).scale(0.5);
     eyeDist = DEFAULT_EYE_DIST;
 }
 
-export function update(deltaTime) {
+export function update(deltaTime, terrain) {
     const direction = new Vector3();
     if (key.isDown("KeyW") || key.isDown("ArrowUp")) { direction.z -= 1; }
     if (key.isDown("KeyA") || key.isDown("ArrowLeft")) { direction.x -= 1; }
@@ -29,6 +30,8 @@ export function update(deltaTime) {
     if (key.isDown("KeyD") || key.isDown("ArrowRight")) { direction.x += 1; }
     direction.normalize().scale(MOVEMENT_SPEED * deltaTime);
     position.add(direction);
+    position.x = Math.min(Math.max(position.x, 0), terrain.sizeU);
+    position.z = Math.min(Math.max(position.z, 0), terrain.sizeU);
     eyeDist += mouse.scrollDelta() * ZOOM_SPEED;
     eyeDist = Math.min(Math.max(eyeDist, MIN_EYE_DIST), MAX_EYE_DIST);
 }

@@ -14,7 +14,7 @@ import { TrackNetwork } from "./network.js";
 const RESOURCES = resources.load({
     rendererResources: Renderer.loadResources(),
     terrainResources: Terrain.loadResources(),
-    trainTracksResources: TrackNetwork.loadResources()
+    networkResources: TrackNetwork.loadResources()
 });
 
 window.addEventListener("load", () => {
@@ -27,7 +27,7 @@ window.addEventListener("load", () => {
 
 let renderer = null;
 let terrain = null;
-let trainTracks = null;
+let network = null;
 
 function init() {
     renderer = new Renderer();
@@ -37,36 +37,42 @@ function onReceiveWorld(world) {
     onGraphicsInit(() => {
         if (terrain !== null) {
             terrain.delete(); 
-            trainTracks.delete();
+            network.delete();
         }
         Terrain.tessellateRivers(world.terrain);
         TrackNetwork.tessellateTrackSegments(world.network);
         const heightMap = new HeightMap(world);
         terrain = new Terrain(world.terrain, heightMap);
-        trainTracks = new TrackNetwork(world, heightMap);
-        camera.init();
+        network = new TrackNetwork(world, heightMap);
+        camera.init(terrain);
     });
 }
 window.onReceiveWorld = onReceiveWorld;
 
+function onReceiveGameState(state) {
+    if (terrain === null) { return; }
+    network.updateTileRegionTex(state.regions);
+}
+window.onReceiveGameState = onReceiveGameState;
+
 gameloop.onFrame(deltaTime => {
     if (terrain !== null) {
         // update
-        camera.update(deltaTime);
+        camera.update(deltaTime, terrain);
         // render
         gprofiles.updateProfile(deltaTime);
         gprofiles.applyProfile(renderer, terrain);
         updateGraphics();
         camera.configureRenderer(renderer);
-        renderer.update(defaultFramebuffer, trainTracks, deltaTime);
+        renderer.update(defaultFramebuffer, network, deltaTime);
         if (gprofiles.current().shadowMapping) {
             renderer.prepareRenderShadows();
             terrain.render(renderer);
-            trainTracks.render(renderer);
+            network.render(renderer);
         }
         renderer.prepareRenderGeometry(defaultFramebuffer);
         terrain.render(renderer);
-        trainTracks.render(renderer);
+        network.render(renderer);
     }
     resetInput();
 });

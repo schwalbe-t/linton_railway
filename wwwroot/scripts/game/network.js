@@ -253,26 +253,25 @@ export class TrackNetwork {
             .map(s => TrackNetwork.generateSegmentMesh(s, elev));
         this.buildStationInstances(worldDetails.network, elev);
         this.sizeT = chunks.toTiles(worldDetails.terrain.sizeC);
-        this.renderTileRegionTex(
-            worldDetails.terrain.sizeC, worldDetails.network
-        );
+        this.prepareTileRegionTex(worldDetails.network);
     }
 
     static REGION_MAX_WORLD_CHUNK_LEN = 60;
-    static STATION_CLIENT_OWNED = 1.0;
-    static STATION_ENEMY_OWNED = 0.5;
+    static STATION_OF_CLIENT = 1.0;
+    static STATION_OF_ENEMY = 0.5;
     static STATION_UNOWNED = 0.0;
 
-    renderTileRegionTex(sizeC, network) {
-        const sizeT = this.sizeT;
+    prepareTileRegionTex(network) {
+        const sizeC = Math.floor(tiles.toChunks(this.sizeT));
         this.tileRegionTex = Texture.withSize(
-            sizeT, sizeT, TextureFormat.R8, TextureFilter.LINEAR
+            this.sizeT, this.sizeT, TextureFormat.R8, TextureFilter.LINEAR
         );
         this.tileRegionFb = new Framebuffer();
         this.tileRegionFb.setColor(this.tileRegionTex);
-        const stationBuffSize = TrackNetwork.REGION_MAX_WORLD_CHUNK_LEN ** 2;
-        this.stationLocBuff = new UniformBuffer(stationBuffSize * 4);
-        const stationData = new Array(stationBuffSize * 4).fill(0.0);
+        this.stationLocBuffSize =TrackNetwork.REGION_MAX_WORLD_CHUNK_LEN ** 2;
+        this.stationLocBuff = new UniformBuffer(this.stationLocBuffSize * 4);
+        this.stationLocBuffData = new Array(this.stationLocBuffSize * 4)
+            .fill(0.0);
         for (const station of network.stations) {
             const center = new Vector3(station.minPos)
                 .lerp(station.maxPos, 0.5);
@@ -281,28 +280,40 @@ export class TrackNetwork {
             const chunkX = Math.floor(tiles.toChunks(tileX));
             const chunkZ = Math.floor(tiles.toChunks(tileZ));
             const offset = (chunkZ * sizeC + chunkX) * 4;
-            stationData[offset + 0] = tileX;
-            stationData[offset + 1] = tileZ;
-            stationData[offset + 2] = Math.random() < 0.5
-                ? TrackNetwork.STATION_CLIENT_OWNED
-                : Math.random() < 0.5
-                ? TrackNetwork.STATION_ENEMY_OWNED
-                : TrackNetwork.STATION_UNOWNED;
+            this.stationLocBuffData[offset + 0] = tileX;
+            this.stationLocBuffData[offset + 1] = tileZ;
+            this.stationLocBuffData[offset + 2] = TrackNetwork.STATION_UNOWNED;
         }
-        this.stationLocBuff.upload(stationData);
         const s = TrackNetwork.TILE_REGION_COMP_SHADER;
         s.setUniform("uStations", this.stationLocBuff);
-        s.setUniform("uWorldSizeC", sizeC);
+        s.setUniform("uWorldSizeC", Math.floor(tiles.toChunks(this.sizeT)));
         s.setUniform("uTilesPerChunk", tiles.PER_CHUNK);
         this.tileStationMapG = new Geometry([2, 2], [
-            -1, +1,   0,     sizeT, // [0] top left
-            +1, +1,   sizeT, sizeT, // [1] top right
-            -1, -1,   0,     0,     // [2] bottom left
-            +1, -1,   sizeT, 0      // [3] bottom right
+            -1, +1,   0,          this.sizeT, // [0] top left
+            +1, +1,   this.sizeT, this.sizeT, // [1] top right
+            -1, -1,   0,          0,     // [2] bottom left
+            +1, -1,   this.sizeT, 0      // [3] bottom right
         ], [
             0, 2, 3, // top left -> bottom left -> bottom right
             0, 3, 1  // top left -> bottom right -> top right
         ]);
+    }
+
+    updateTileRegionTex(regions) {
+        const sizeC = Math.floor(tiles.toChunks(this.sizeT));
+        for (let cx = 0; cx < sizeC; cx += 1) {
+            for (let cz = 0; cz < sizeC; cz += 1) {
+                const i = cz * sizeC + cx;
+                const owner = regions.chunks[i].owner;
+                this.stationLocBuffData[i * 4 + 2] = owner === null 
+                    ? TrackNetwork.STATION_UNOWNED
+                    : owner.id === playerId
+                        ? TrackNetwork.STATION_OF_CLIENT
+                        : TrackNetwork.STATION_OF_ENEMY;
+            }
+        }
+        this.stationLocBuff.upload(this.stationLocBuffData);
+        const s = TrackNetwork.TILE_REGION_COMP_SHADER;
         this.tileStationMapG.render(
             s, this.tileRegionFb, 1, DepthTesting.DISABLED
         );

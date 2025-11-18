@@ -22,7 +22,7 @@ export class Renderer {
     static FOV_Y = 60;
     static NEAR_PLANE = 1;
     static FAR_PLANE = 1000;
-    static CLEAR_COLOR = new Vector4(209, 193, 158, 255).scale(1/255);
+    static CLEAR_COLOR = new Vector4(110, 114, 97, 255).scale(1/255);
     
     static VIEW_PROJ_UNIFORM = "uViewProj";
     static LIGHT_PROJ_UNIFORM = "uLightProj";

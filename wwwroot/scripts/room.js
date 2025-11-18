@@ -325,7 +325,7 @@ function onSocketEvent(event) {
             break;
         }
         case "game_update": {
-            console.log(event.state);
+            onReceiveGameState(event.state);
             break;
         }
     }

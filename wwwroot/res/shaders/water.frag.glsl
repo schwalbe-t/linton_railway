@@ -2,6 +2,7 @@
 #include "common/renderer.h.glsl"
 #include "common/shading.h.glsl"
 #include "common/regions.h.glsl"
+#include "common/borders.h.glsl"
 
 in vec3 fWorldPosition;
 in vec3 fWorldNormal;
@@ -46,5 +47,6 @@ void main() {
     } else {
         shaded = shadedColor(BASE_COLOR, fWorldPosition, worldNormal);
     }
-    oColor = withRegionColorFilter(shaded, fWorldPosition);
+    vec4 regColor = withRegionColorFilter(shaded, fWorldPosition);
+    oColor = withBorderFadeout(regColor, fWorldPosition);
 }

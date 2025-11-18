@@ -3,9 +3,6 @@
 #define LINTON_REGIONS_H
 
 
-uniform sampler2D uTileRegions;
-uniform float uWorldSizeU;
-
 const vec4 REG_CLIENT_BASE = vec4(0.0, 0.0, 0.0, 0.0);
 const vec4 REG_CLIENT_FACTORS = vec4(1.0, 1.0, 1.0, 1.0);
 const float REG_CLIENT_VAL = 1.0;

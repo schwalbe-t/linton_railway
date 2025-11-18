@@ -95,15 +95,12 @@ public class GameInstance
             {
                 for (int rcz = -rad; rcz <= +rad; rcz += 1)
                 {
-                    if (Math.Abs(rcx) == rad || Math.Abs(rcz) == rad)
-                    {
-                        if (TryAllocate(centerX + rcx, centerZ + rcz))
-                        {
-                            return;
-                        }
-                    }
+                    bool onEdge = rad == 0
+                        || Math.Abs(rcx) == rad != (Math.Abs(rcz) == rad);
+                    if (!onEdge) { continue; }
+                    if (TryAllocate(centerX + rcx, centerZ + rcz)) { return; }
                 }
-            }   
+            }
         }
     }
 

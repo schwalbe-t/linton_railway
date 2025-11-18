@@ -12,6 +12,7 @@ uniform float uNormalOffset;
 uniform sampler2D uTexture;
 uniform float uTime;
 uniform bool uShadowMapping;
-
+uniform float uWorldSizeU;
+uniform sampler2D uTileRegions;
 
 #endif

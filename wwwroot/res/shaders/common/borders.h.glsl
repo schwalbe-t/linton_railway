@@ -4,7 +4,7 @@
 
 
 const vec4 BORDER_FADEOUT_COLOR = vec4(110.0, 114.0, 97.0, 255.0) / 255.0;
-const float BORDER_FADEOUT_DIST = 20.0;
+const float BORDER_FADEOUT_DIST = 50.0;
 
 vec4 withBorderFadeout(vec4 baseColor, vec3 worldPos) {
     float trueDist = min(

@@ -101,7 +101,7 @@ public sealed record LinSpline(
         {
             point.SegmentI -= 1;
             float segLen = SegmentLength(point.SegmentI);
-            if (segLen > distance)
+            if (segLen > remDist)
             {
                 point.Distance = segLen - remDist;
                 return distance;

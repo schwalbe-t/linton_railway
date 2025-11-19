@@ -339,9 +339,9 @@ export const DepthTesting = Object.freeze({
 
 
 export const ObjProperty = Object.freeze({
-    Position: { size: 3, objIdxPos: 0, buffer: (p, t, n) => p },
-    TexCoord: { size: 2, objIdxPos: 1, buffer: (p, t, n) => t },
-    Normal:   { size: 3, objIdxPos: 2, buffer: (p, t, n) => n }
+    Position: { size: 3, objIdxPos: 0, select: (p, t, n) => p },
+    TexCoord: { size: 2, objIdxPos: 1, select: (p, t, n) => t },
+    Normal:   { size: 3, objIdxPos: 2, select: (p, t, n) => n }
 });
 
 export class Geometry {
@@ -365,7 +365,7 @@ export class Geometry {
                 const indices = elem.split("/").map(Number);
                 for (const property of layout) {
                     const index = indices[property.objIdxPos] - 1;
-                    const buf = property.buffer(positions, texCoords, normals);
+                    const buf = property.select(positions, texCoords, normals);
                     vertData.push(...buf[index]);
                 }
                 let vertIdx = vertexCount;

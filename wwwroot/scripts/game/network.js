@@ -25,6 +25,7 @@ export class TrackNetwork {
     static PLATFORM_MODEL = null;
     static STATION_MODEL = null;
     static TILE_REGION_COMP_SHADER = null;
+    static TRACK_HIGHLIGHT_SHADER = null;
     static async loadResources() {
         const tracksTextureReq = Texture.loadImage(
             "/res/textures/tracks.png", TextureFormat.RGBA8
@@ -46,58 +47,51 @@ export class TrackNetwork {
             "/res/shaders/tile_region.vert.glsl",
             "/res/shaders/tile_region.frag.glsl"
         );
+        const trackHighlightShaderReq = Shader.loadGlsl(
+            "/res/shaders/geometry.vert.glsl",
+            "/res/shaders/track_highlight.frag.glsl"
+        );
         TrackNetwork.TRACKS_TEXTURE = await tracksTextureReq;
         TrackNetwork.PLATFORM_MODEL = await platformModelReq;
         TrackNetwork.STATION_MODEL = await stationModelReq;
         TrackNetwork.TILE_REGION_COMP_SHADER = await tileRegionCompShaderReq;
+        TrackNetwork.TRACK_HIGHLIGHT_SHADER = await trackHighlightShaderReq;
     }
 
-    // X+ is towards the right in the direction of low -> high
     static TRACK_VERTICES_LOW = [
         // ballast top plane
-        { x: +0.8, y:  0.0, uv: [0.00, 1.00], buv: [ 0.00,  0.00] }, // [0] low right
-        { x: -0.8, y:  0.0, uv: [0.25, 1.00], buv: [ 0.00,  0.00] }, // [1] low left
+        { x: +0.8, y:  0.0, uv: [0.00, 1.00], muv: [ 0.00,  0.00] }, // [0] low right
+        { x: -0.8, y:  0.0, uv: [0.25, 1.00], muv: [ 0.00,  0.00] }, // [1] low left
         // ballast right plane
-        { x: +0.8, y:  0.0, uv: [0.50, 1.00], buv: [ 0.00, -0.50] }, // [2] low top
-        { x: +1.6, y: -4.0, uv: [0.50, 0.50], buv: [ 0.00, -0.50] }, // [3] low bottom
+        { x: +0.8, y:  0.0, uv: [0.50, 1.00], muv: [ 0.00, -0.50] }, // [2] low top
+        { x: +1.6, y: -4.0, uv: [0.50, 0.50], muv: [ 0.00, -0.50] }, // [3] low bottom
         // ballast left plane
-        { x: -0.8, y:  0.0, uv: [1.00, 1.00], buv: [ 0.00, -0.50] }, // [4] low top
-        { x: -1.6, y: -4.0, uv: [1.00, 0.50], buv: [ 0.00, -0.50] }  // [5] low bottom
+        { x: -0.8, y:  0.0, uv: [1.00, 1.00], muv: [ 0.00, -0.50] }, // [4] low top
+        { x: -1.6, y: -4.0, uv: [1.00, 0.50], muv: [ 0.00, -0.50] }  // [5] low bottom
     ];
     static TRACK_MAX_SEG_LEN = 4;
     static TRACK_UV_DIST = 4;
-    // - 'uv' is the base tex coordinate for the vertex
-    // - 'suv' is added to the tex coordinate for the vertex based on the
-    //   distance to the "low" vertex with the same index
-    //   (if the distance is the const uv dist, all is added, otherwise less)
     static TRACK_VERTICES_HIGH = [
         // ballast top plane
-        { x: +0.8, y:  0.0, uv: [0.00, 1.00], suv: [ 0.00, -1.00], buv: [ 0.00,  0.00] }, // [0] high right
-        { x: -0.8, y:  0.0, uv: [0.25, 1.00], suv: [ 0.00, -1.00], buv: [ 0.00,  0.00] }, // [1] high left
+        { x: +0.8, y:  0.0, uv: [0.00, 1.00], duv: [ 0.00, -1.00], muv: [ 0.00,  0.00] }, // [0] high right
+        { x: -0.8, y:  0.0, uv: [0.25, 1.00], duv: [ 0.00, -1.00], muv: [ 0.00,  0.00] }, // [1] high left
         // ballast right plane
-        { x: +0.8, y:  0.0, uv: [0.50, 1.00], suv: [+0.50,  0.00], buv: [ 0.00, -0.50] }, // [2] high top
-        { x: +1.6, y: -4.0, uv: [0.50, 0.50], suv: [+0.50,  0.00], buv: [ 0.00, -0.50] }, // [3] high bottom
+        { x: +0.8, y:  0.0, uv: [0.50, 1.00], duv: [+0.50,  0.00], muv: [ 0.00, -0.50] }, // [2] high top
+        { x: +1.6, y: -4.0, uv: [0.50, 0.50], duv: [+0.50,  0.00], muv: [ 0.00, -0.50] }, // [3] high bottom
         // ballast left plane
-        { x: -0.8, y:  0.0, uv: [1.00, 1.00], suv: [-0.50,  0.00], buv: [ 0.00, -0.50] }, // [4] high top
-        { x: -1.6, y: -4.0, uv: [1.00, 0.50], suv: [-0.50,  0.00], buv: [ 0.00, -0.50] }  // [5] high bottom
+        { x: -0.8, y:  0.0, uv: [1.00, 1.00], duv: [-0.50,  0.00], muv: [ 0.00, -0.50] }, // [4] high top
+        { x: -1.6, y: -4.0, uv: [1.00, 0.50], duv: [-0.50,  0.00], muv: [ 0.00, -0.50] }  // [5] high bottom
     ];
-
-    static BRIDGE_TERRAIN_ELEV = -3.0;
-
-    // - 'quad' is a function that builds a quad using the given vertices
-    // - 'l' is a function that receives an index of an entry in
-    // 'TRACK_VERTICES_LOW' and returns the value that 'quad' expects for it
-    // - 'h' is a function that receives an index of an entry in
-    // 'TRACK_VERTICES_HIGH' and returns the value that 'quad' expects for it
-    static buildTrackSplineStep(quad, l, h) {
+    static BUILD_TRACK_SPLINE_STEP = (quad, l, h) => {
         quad(l(1), l(0), h(0), h(1)); // ballast top plane
         quad(l(2), l(3), h(3), h(2)); // ballast right plane
         quad(h(4), h(5), l(5), l(4)); // ballast left plane
     }
-
+    static BRIDGE_TERRAIN_ELEV = -3.0;
     static TRACK_UP = new Vector3(0, 1, 0);
 
     static generateSegmentMesh(segment, elev) {
+        const spline = segment.tesSpline;
         let totalMinX = +Infinity;
         let totalMinZ = +Infinity;
         let totalMaxX = -Infinity;
@@ -108,42 +102,9 @@ export class TrackNetwork {
             totalMaxX = Math.max(totalMaxX, pos.x);
             totalMaxZ = Math.max(totalMaxZ, pos.z);
         };
-        const spline = segment.tesSpline;
-        let low = spline.start;
-        boundsIncludePos(low);
-        let lowRight = null;
-        let point = linspline.Point();
-        const vertData = [];
-        let nextVertIdx = 0;
-        const elemData = [];
-        const buildQuad = (a, b, c, d) => {
-            const ba = a.pos.clone().subtract(b.pos);
-            const bc = c.pos.clone().subtract(b.pos);
-            const norm = bc.cross(ba).normalize();
-            const o = nextVertIdx;
-            vertData.push(
-                ...a.pos, ...norm, ...a.uv, // [0]
-                ...b.pos, ...norm, ...b.uv, // [1]
-                ...c.pos, ...norm, ...c.uv, // [2]
-                ...d.pos, ...norm, ...d.uv  // [3]
-            );
-            nextVertIdx += 4;
-            elemData.push(
-                o+0, o+1, o+2,
-                o+0, o+2, o+3
-            );
-        };
-        for (;;) {
-            const advanced = linspline.advancePoint(
-                spline, point, TrackNetwork.TRACK_MAX_SEG_LEN
-            );
-            if (advanced <= 0.001) { break; }
-            const high = linspline.atPoint(spline, point);
-            boundsIncludePos(high);
-            const lowToHigh = high.clone().subtract(low).normalize();
-            const highRight = lowToHigh.cross(TrackNetwork.TRACK_UP)
-                .normalize();
-            if (lowRight == null) { lowRight = highRight; }
+        boundsIncludePos(spline.start);
+        boundsIncludePos(spline.segments.at(-1));
+        const bridgeUvMod = (low, high) => {
             const lowTileX = Math.round(units.toTiles(low.x));
             const lowTileZ = Math.round(units.toTiles(low.z));
             const highTileX = Math.round(units.toTiles(high.x));
@@ -151,47 +112,56 @@ export class TrackNetwork {
             const minElev = Math.min(
                 elev.at(lowTileX, lowTileZ), elev.at(highTileX, highTileZ)
             );
-            const isBridge = minElev <= TrackNetwork.BRIDGE_TERRAIN_ELEV
-                ? 1 : 0;
-            const vertPos = (origin, right, v) => right.clone().scale(v.x)
-                .add([0, v.y, 0])
-                .add(origin);
-            const buildLowVertex = i => {
-                const v = TrackNetwork.TRACK_VERTICES_LOW[i];
-                const pos = vertPos(low, lowRight, v);
-                const uv = [
-                    v.uv[0] + v.buv[0] * isBridge,
-                    v.uv[1] + v.buv[1] * isBridge
-                ];
-                return { pos, uv };
-            };
-            const buildHighVertex = i => {
-                const v = TrackNetwork.TRACK_VERTICES_HIGH[i];
-                const pos = vertPos(high, highRight, v);
-                const uvs = advanced / TrackNetwork.TRACK_UV_DIST;
-                const uv = [
-                    v.uv[0] + v.suv[0] * uvs + v.buv[0] * isBridge,
-                    v.uv[1] + v.suv[1] * uvs + v.buv[1] * isBridge
-                ];
-                return { pos, uv };
-            };
-            TrackNetwork.buildTrackSplineStep(
-                buildQuad, buildLowVertex, buildHighVertex
-            );
-            low = high;
-            lowRight = highRight;
-        }
+            return minElev <= TrackNetwork.BRIDGE_TERRAIN_ELEV ? 1 : 0;
+        };
+        const geometry = linspline.generateGeometry(spline, {
+            segLengthLimit: TrackNetwork.TRACK_MAX_SEG_LEN,
+            uvDistance: TrackNetwork.TRACK_UV_DIST,
+            modifyFunc: bridgeUvMod,
+            up: TrackNetwork.TRACK_UP,
+            lowVertices: TrackNetwork.TRACK_VERTICES_LOW,
+            highVertices: TrackNetwork.TRACK_VERTICES_HIGH,
+            buildSegment: TrackNetwork.BUILD_TRACK_SPLINE_STEP,
+            layout: Renderer.OBJ_LAYOUT
+        });
         return {
-            geometry: new Geometry(
-                Renderer.GEOMETRY_LAYOUT, vertData, elemData
-            ),
+            geometry,
             minCX: Math.floor(units.toChunks(totalMinX)),
             minCZ: Math.floor(units.toChunks(totalMinZ)),
             maxCX: Math.floor(units.toChunks(totalMaxX)),
             maxCZ: Math.floor(units.toChunks(totalMaxZ)),
+            tesSpline: segment.tesSpline,
             connectsLow: segment.connectsLow,
             connectsHigh: segment.connectsHigh
         };
+    }
+
+    static TRACK_HL_VERTICES_LOW = [
+        { x: +0.5, y:  0.05, uv: [0.50, 0.50], muv: [0.00, 0.00] }, // [0] low right
+        { x: -0.5, y:  0.05, uv: [0.50, 0.50], muv: [0.00, 0.00] }  // [1] low left
+    ];
+    static TRACK_HL_MAX_SEG_LEN = 2;
+    static TRACK_HL_VERTICES_HIGH = [
+        { x: +0.5, y:  0.05, uv: [0.50, 0.50], duv: [0.00, 0.00], muv: [0.00, 0.00] }, // [0] high right
+        { x: -0.5, y:  0.05, uv: [0.50, 0.50], duv: [0.00, 0.00], muv: [0.00, 0.00] }  // [1] high left
+    ];
+    static BUILD_TRACK_HL_SPLINE_STEP = (quad, l, h) => {
+        quad(l(1), l(0), h(0), h(1));
+    }
+    static TRACK_HL_MAX_GEN_LEN = 20;
+
+    static generateSegmentHighlight(segment, fromHigh) {
+        const spline = segment.tesSpline;
+        return linspline.generateGeometry(spline, {
+            startFromHigh: fromHigh,
+            segLengthLimit: TrackNetwork.TRACK_HL_MAX_SEG_LEN,
+            genLengthLimit: TrackNetwork.TRACK_HL_MAX_GEN_LEN,
+            up: TrackNetwork.TRACK_UP,
+            lowVertices: TrackNetwork.TRACK_HL_VERTICES_LOW,
+            highVertices: TrackNetwork.TRACK_HL_VERTICES_HIGH,
+            buildSegment: TrackNetwork.BUILD_TRACK_HL_SPLINE_STEP,
+            layout: Renderer.OBJ_LAYOUT
+        });
     }
 
     static PLATFORM_MODEL_LENGTH = 5; // in units
@@ -256,6 +226,7 @@ export class TrackNetwork {
         this.buildStationInstances(worldDetails.network, elev);
         this.sizeT = chunks.toTiles(worldDetails.terrain.sizeC);
         this.prepareTileRegionTex(worldDetails.network);
+        this.switchHighlights = [];
     }
 
     static REGION_MAX_WORLD_CHUNK_LEN = 60;
@@ -321,12 +292,27 @@ export class TrackNetwork {
         );
     }
 
+    updateSwitchStates(switches) {
+        this.switchHighlights.forEach(h => h.delete());
+        this.switchHighlights = switches.map(sw => {
+            const segmentIdx = sw.key.segmentIdx;
+            const segment = this.segments[segmentIdx];
+            const branches = sw.key.toHighEnd
+                ? segment.connectsHigh : segment.connectsLow;
+            const branch = branches[sw.value];
+            return TrackNetwork.generateSegmentHighlight(
+                this.segments[branch.segmentIdx], branch.toHighEnd
+            );
+        });
+    }
+
     static RENDER_XMIN = -2;
     static RENDER_XMAX = +2;
     static RENDER_ZMIN = -1;
     static RENDER_ZMAX = +1;
 
     render(renderer) {
+        renderer.setGeometryUniforms(TrackNetwork.TRACK_HIGHLIGHT_SHADER);
         const segmentInstance = [ new Matrix4() ];
         const camChunkX = units.toChunks(renderer.camera.center.x);
         const camChunkZ = units.toChunks(renderer.camera.center.z);
@@ -352,6 +338,12 @@ export class TrackNetwork {
             renderer.renderModel(TrackNetwork.PLATFORM_MODEL, s.platforms);
             renderer.renderModel(TrackNetwork.STATION_MODEL, s.buildings);
         }
+        const hlInst = new Matrix4();
+        for (const h of this.switchHighlights) {
+            renderer.renderGeometry(
+                h, null, [hlInst], null, TrackNetwork.TRACK_HIGHLIGHT_SHADER
+            );
+        }
     }
  
     delete() {
@@ -360,6 +352,7 @@ export class TrackNetwork {
         this.tileRegionTex.delete();
         this.stationLocBuff.delete();
         this.tileStationMapG.delete();
+        this.switchHighlights.forEach(h => h.delete());
     }
 
 }

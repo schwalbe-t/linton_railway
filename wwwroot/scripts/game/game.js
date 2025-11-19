@@ -52,6 +52,7 @@ window.onReceiveWorld = onReceiveWorld;
 function onReceiveGameState(state) {
     if (terrain === null) { return; }
     network.updateTileRegionTex(state.regions);
+    network.updateSwitchStates(state.switches);
 }
 window.onReceiveGameState = onReceiveGameState;
 

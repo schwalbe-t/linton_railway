@@ -92,18 +92,6 @@ export class TrackNetwork {
 
     static generateSegmentMesh(segment, elev) {
         const spline = segment.tesSpline;
-        let totalMinX = +Infinity;
-        let totalMinZ = +Infinity;
-        let totalMaxX = -Infinity;
-        let totalMaxZ = -Infinity;
-        const boundsIncludePos = pos => {
-            totalMinX = Math.min(totalMinX, pos.x);
-            totalMinZ = Math.min(totalMinZ, pos.z);
-            totalMaxX = Math.max(totalMaxX, pos.x);
-            totalMaxZ = Math.max(totalMaxZ, pos.z);
-        };
-        boundsIncludePos(spline.start);
-        boundsIncludePos(spline.segments.at(-1));
         const bridgeUvMod = (low, high) => {
             const lowTileX = Math.round(units.toTiles(low.x));
             const lowTileZ = Math.round(units.toTiles(low.z));
@@ -124,12 +112,14 @@ export class TrackNetwork {
             buildSegment: TrackNetwork.BUILD_TRACK_SPLINE_STEP,
             layout: Renderer.OBJ_LAYOUT
         });
+        const min = linspline.fastMinBound(spline);
+        const max = linspline.fastMaxBound(spline);
         return {
             geometry,
-            minCX: Math.floor(units.toChunks(totalMinX)),
-            minCZ: Math.floor(units.toChunks(totalMinZ)),
-            maxCX: Math.floor(units.toChunks(totalMaxX)),
-            maxCZ: Math.floor(units.toChunks(totalMaxZ)),
+            minCX: Math.floor(units.toChunks(min.x)),
+            minCZ: Math.floor(units.toChunks(min.z)),
+            maxCX: Math.floor(units.toChunks(max.x)),
+            maxCZ: Math.floor(units.toChunks(max.z)),
             tesSpline: segment.tesSpline,
             connectsLow: segment.connectsLow,
             connectsHigh: segment.connectsHigh
@@ -137,22 +127,22 @@ export class TrackNetwork {
     }
 
     static TRACK_HL_VERTICES_LOW = [
-        { x: +0.5, y:  0.05, uv: [0.50, 0.50], muv: [0.00, 0.00] }, // [0] low right
-        { x: -0.5, y:  0.05, uv: [0.50, 0.50], muv: [0.00, 0.00] }  // [1] low left
+        { x: +0.8, y:  0.01, uv: [0.50, 0.50], muv: [0.00, 0.00] }, // [0] low right
+        { x: -0.8, y:  0.01, uv: [0.50, 0.50], muv: [0.00, 0.00] }  // [1] low left
     ];
     static TRACK_HL_MAX_SEG_LEN = 2;
     static TRACK_HL_VERTICES_HIGH = [
-        { x: +0.5, y:  0.05, uv: [0.50, 0.50], duv: [0.00, 0.00], muv: [0.00, 0.00] }, // [0] high right
-        { x: -0.5, y:  0.05, uv: [0.50, 0.50], duv: [0.00, 0.00], muv: [0.00, 0.00] }  // [1] high left
+        { x: +0.8, y:  0.01, uv: [0.50, 0.50], duv: [0.00, 0.00], muv: [0.00, 0.00] }, // [0] high right
+        { x: -0.8, y:  0.01, uv: [0.50, 0.50], duv: [0.00, 0.00], muv: [0.00, 0.00] }  // [1] high left
     ];
     static BUILD_TRACK_HL_SPLINE_STEP = (quad, l, h) => {
         quad(l(1), l(0), h(0), h(1));
     }
     static TRACK_HL_MAX_GEN_LEN = 20;
 
-    static generateSegmentHighlight(segment, fromHigh) {
+    static generateSegmentHighlightMesh(segment, fromHigh) {
         const spline = segment.tesSpline;
-        return linspline.generateGeometry(spline, {
+        const geometry = linspline.generateGeometry(spline, {
             startFromHigh: fromHigh,
             segLengthLimit: TrackNetwork.TRACK_HL_MAX_SEG_LEN,
             genLengthLimit: TrackNetwork.TRACK_HL_MAX_GEN_LEN,
@@ -162,6 +152,15 @@ export class TrackNetwork {
             buildSegment: TrackNetwork.BUILD_TRACK_HL_SPLINE_STEP,
             layout: Renderer.OBJ_LAYOUT
         });
+        const min = linspline.fastMinBound(spline);
+        const max = linspline.fastMaxBound(spline);
+        return {
+            geometry,
+            minCX: Math.floor(units.toChunks(min.x)),
+            minCZ: Math.floor(units.toChunks(min.z)),
+            maxCX: Math.floor(units.toChunks(max.x)),
+            maxCZ: Math.floor(units.toChunks(max.z))
+        };
     }
 
     static PLATFORM_MODEL_LENGTH = 5; // in units
@@ -220,13 +219,27 @@ export class TrackNetwork {
         }
     }
 
+    buildSwitchHighlights() {
+        const buildBranchHighlight = bConn => {
+            return TrackNetwork.generateSegmentHighlightMesh(
+                this.segments[bConn.segmentIdx], bConn.toHighEnd
+            );
+        };
+        this.switchHighlights = this.segments.map(s => {
+            const low = s.connectsLow.map(buildBranchHighlight);
+            const high = s.connectsHigh.map(buildBranchHighlight);
+            return { low, high };
+        });
+    }
+
     constructor(worldDetails, elev) {
         this.segments = worldDetails.network.segments
             .map(s => TrackNetwork.generateSegmentMesh(s, elev));
         this.buildStationInstances(worldDetails.network, elev);
         this.sizeT = chunks.toTiles(worldDetails.terrain.sizeC);
         this.prepareTileRegionTex(worldDetails.network);
-        this.switchHighlights = [];
+        this.buildSwitchHighlights();
+        this.visibleSwitchHighlights = [];
     }
 
     static REGION_MAX_WORLD_CHUNK_LEN = 60;
@@ -293,17 +306,18 @@ export class TrackNetwork {
     }
 
     updateSwitchStates(switches) {
-        this.switchHighlights.forEach(h => h.delete());
-        this.switchHighlights = switches.map(sw => {
-            const segmentIdx = sw.key.segmentIdx;
-            const segment = this.segments[segmentIdx];
-            const branches = sw.key.toHighEnd
-                ? segment.connectsHigh : segment.connectsLow;
-            const branch = branches[sw.value];
-            return TrackNetwork.generateSegmentHighlight(
-                this.segments[branch.segmentIdx], branch.toHighEnd
-            );
-        });
+        // TODO! uncomment
+        // this.visibleSwitchHighlights = switches.map(sw => {
+        //     const segmentIdx = sw.key.segmentIdx;
+        //     const segment = this.switchHighlights[segmentIdx];
+        //     const branches = sw.key.toHighEnd ? segment.high : segment.low;
+        //     return branches[sw.value];
+        // });
+        this.visibleSwitchHighlights = [];
+        for (const s of this.switchHighlights) {
+            if (s.low.length >= 2) { this.visibleSwitchHighlights.push(...s.low); }
+            if (s.high.length >= 2) { this.visibleSwitchHighlights.push(...s.high); }
+        }
     }
 
     static RENDER_XMIN = -2;
@@ -339,9 +353,13 @@ export class TrackNetwork {
             renderer.renderModel(TrackNetwork.STATION_MODEL, s.buildings);
         }
         const hlInst = new Matrix4();
-        for (const h of this.switchHighlights) {
+        for (const h of this.visibleSwitchHighlights) {
+            if (isOutOfBounds(h.chunkX, h.chunkZ, h.chunkX, h.chunkZ)) {
+                continue; 
+            }
             renderer.renderGeometry(
-                h, null, [hlInst], null, TrackNetwork.TRACK_HIGHLIGHT_SHADER
+                h.geometry, null, [hlInst], null,
+                TrackNetwork.TRACK_HIGHLIGHT_SHADER
             );
         }
     }
@@ -352,7 +370,10 @@ export class TrackNetwork {
         this.tileRegionTex.delete();
         this.stationLocBuff.delete();
         this.tileStationMapG.delete();
-        this.switchHighlights.forEach(h => h.delete());
+        this.switchHighlights.forEach(s => {
+            s.low.forEach(h => h.geometry.delete());
+            s.high.forEach(h => h.geometry.delete());
+        });
     }
 
 }

@@ -14,13 +14,10 @@ namespace Linton.Game;
 /// </summary>
 /// <param name="segmentIdx">the index of the segment</param>
 /// <param name="toHighEnd">whether connects to high (T) or low end (F)</param>
-public readonly struct TrackConnection(int segmentIdx, bool toHighEnd)
-{
-    [JsonProperty("segmentIdx")]
-    public readonly int SegmentIdx = segmentIdx;
-    [JsonProperty("toHighEnd")]
-    public readonly bool ToHighEnd = toHighEnd;
-}
+public record struct TrackConnection(
+    [property: JsonProperty("segmentIdx")] int SegmentIdx,
+    [property: JsonProperty("toHighEnd")] bool ToHighEnd
+);
 
 
 /// <summary>

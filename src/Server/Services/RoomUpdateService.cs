@@ -8,7 +8,7 @@ public sealed class RoomUpdateService(ILogger<RoomUpdateService> logger)
 
     readonly ILogger<RoomUpdateService> _logger = logger;
 
-    public override TimeSpan Interval => TimeSpan.FromMilliseconds(100);
+    public override TimeSpan Interval => TimeSpan.FromMilliseconds(500);
 
     public override void Run()
     {

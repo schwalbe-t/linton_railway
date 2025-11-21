@@ -6,10 +6,10 @@ export const quadspline = Object.freeze({
 
     inSegment: function(spline, segmentI, t) {
         if (segmentI < 0 || spline.segments.length === 0) {
-            return spline.start.clone();
+            return new Vector3(spline.start);
         }
         if (segmentI >= spline.segments.length) {
-            return spline.segments.at(-1).to.clone();
+            return new Vector3(spline.segments.at(-1).to);
         }
         const start = segmentI === 0? spline.start 
             : spline.segments[segmentI - 1].to;
@@ -36,7 +36,7 @@ export const quadspline = Object.freeze({
             }
         }
         return {
-            start: new Vector3().copy(spline.start),
+            start: new Vector3(spline.start),
             segments: builtSegments
         };
     }
@@ -47,10 +47,10 @@ export const linspline = Object.freeze({
 
     inSegment: function(spline, segmentI, t) {
         if (segmentI < 0 || spline.segments.length === 0) {
-            return spline.start;
+            return spline.start.clone();
         }
         if (segmentI >= spline.segments.length) {
-            return spline.segments.at(-1);
+            return spline.segments.at(-1).clone();
         }
         const start = segmentI === 0? spline.start
             : spline.segments[segmentI - 1];
@@ -91,23 +91,35 @@ export const linspline = Object.freeze({
         return dist - remDist;
     },
 
+    reversePoint: function(spline, point, dist) {
+        if (dist < 0) { return linspline.advancePoint(spline, point, -dist); }
+        if (dist <= point.dist) {
+            point.dist -= dist;
+            return dist;
+        }
+        let remDist = dist - point.dist;
+        point.dist = 0;
+        while (point.segmentI > 0) {
+            point.segmentI -= 1;
+            const segLen = linspline.segmentLength(spline, point.segmentI);
+            if (segLen > remDist) {
+                point.dist = segLen - remDist;
+                return dist;
+            }
+            remDist -= segLen;
+        }
+        return dist - remDist;
+    },
+
     atPoint: function(spline, point) {
         const t = point.dist / linspline.segmentLength(spline, point.segmentI);
         return linspline.inSegment(spline, point.segmentI, t);
-    },
-    
-    totalLength: function(spline) {
-        let totalLength = 0;
-        for (let segI = 0; segI < spline.segments.length; segI += 1) {
-            totalLength += linspline.segmentLength(spline, segI);
-        }
-        return totalLength;
     },
 
     // Options:
     // startFromHigh (false)      - whether to mesh from low to high (false)
     //                              or high to low (true)
-    // genLengthLimit (spl. len)  - length limit for the entire generated mesh
+    // genLengthLimit (Inf)       - length limit for the entire generated mesh
     // segLengthLimit (1.0)       - length limit for each mesh segment
     // uvDistance (1.0)           - distance which maps to 1 DUV
     // modifyFunc ((a, b) => 0.0) - function that returns the factor of MUV
@@ -136,9 +148,8 @@ export const linspline = Object.freeze({
     // high - function that takes the index of a vertex in the high vertices
     //        list and returns the equivalent vertex used for 'quad'
     generateGeometry: function(spline, options = {}) {
-        const splineLen = linspline.totalLength(spline);
         const startFromHigh = options.startFromHigh || false;
-        const genLengthLimit = options.genLengthLimit || splineLen;
+        const genLengthLimit = options.genLengthLimit || Infinity;
         const segLengthLimit = options.segLengthLimit || 1.0;
         const uvDistance = options.uvDistance || 1.0;
         const modifyFunc = options.modifyFunc || ((_1, _2) => 0.0);
@@ -149,7 +160,7 @@ export const linspline = Object.freeze({
         const layout = options.layout || [];
         let point = linspline.Point();
         if (startFromHigh) {
-            linspline.advancePoint(spline, point, splineLen - genLengthLimit);
+            linspline.advancePointToEnd(spline, point);
         }
         let low = linspline.atPoint(spline, point);
         let lowRight = null;
@@ -173,9 +184,11 @@ export const linspline = Object.freeze({
             );
         };
         let remGenLen = genLengthLimit;
-        for (;;) {
+        while (remGenLen > 0) {
             const highOff = Math.min(remGenLen, segLengthLimit);
-            const advanced = linspline.advancePoint(spline, point, highOff);
+            const advanced = startFromHigh
+                ? linspline.reversePoint(spline, point, highOff)
+                : linspline.advancePoint(spline, point, highOff);
             if (advanced <= 0.001) { break; }
             remGenLen -= advanced;
             const high = linspline.atPoint(spline, point);
@@ -210,6 +223,30 @@ export const linspline = Object.freeze({
             lowRight = highRight;
         }
         return new Geometry(layout.map(p => p.size), vertData, elemData);
+    },
+
+    // Computes the minimum position for the bounds of the given linear spline.
+    // This function only considers the starting and ending positions for
+    // speed, which may cause issues for splines with non-trivial paths.
+    fastMinBound: function(spline) {
+        const start = spline.start;
+        const end = spline.segments.at(-1);
+        const minX = Math.min(start.x, end.x);
+        const minY = Math.min(start.y, end.y);
+        const minZ = Math.min(start.z, end.z);
+        return new Vector3(minX, minY, minZ);
+    },
+
+    // Computes the maximum position for the bounds of the given linear spline.
+    // This function only considers the starting and ending positions for
+    // speed, which may cause issues for splines with non-trivial paths.
+    fastMaxBound: function(spline) {
+        const start = spline.start;
+        const end = spline.segments.at(-1);
+        const maxX = Math.max(start.x, end.x);
+        const maxY = Math.max(start.y, end.y);
+        const maxZ = Math.max(start.z, end.z);
+        return new Vector3(maxX, maxY, maxZ);
     }
 
 });

@@ -53,6 +53,7 @@ function onReceiveGameState(state) {
     if (terrain === null) { return; }
     network.updateTileRegionTex(state.regions);
     network.updateSwitchStates(state.switches);
+    console.log(state.trains);
 }
 window.onReceiveGameState = onReceiveGameState;
 

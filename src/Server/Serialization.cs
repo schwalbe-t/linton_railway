@@ -14,7 +14,8 @@ public static class JsonSettings
         {
             new InEventConverter(),
             new Vector3Converter(),
-            new ConcurrentDictionaryConverter<TrackConnection, ushort>()
+            new ConcurrentDictionaryConverter<TrackConnection, ushort>(),
+            new ConcurrentDictionaryConverter<Guid, Train>()
         }
     };
 }

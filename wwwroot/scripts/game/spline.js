@@ -65,8 +65,11 @@ export const linspline = Object.freeze({
         return start.distance(end);
     },
 
-    Point: function() {
-        return { segmentI: 0, dist: 0.0 };
+    Point: function(existing) {
+        return {
+            segmentI: existing ? existing.segmentI || 0 : 0,
+            dist: existing ? existing.dist || 0.0 : 0.0
+        };
     },
 
     advancePointToEnd: function(spline, point) {

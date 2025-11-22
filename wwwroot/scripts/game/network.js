@@ -9,6 +9,63 @@ import { RegionText, Signal } from "./world_ui.js";
 import { linspline, quadspline } from "./spline.js";
 import { chunks, tiles, units } from "./terrain.js";
 
+
+/*
+    Train colors:
+    "green"   = #437f5d
+    "cyan"    = #5a8b97
+    "magenta" = #aa749e
+    "red"     = #ba5e69
+    "orange"  = #d3925b
+
+    Loco types:
+    "diesel"
+    "steam"
+*/
+
+export class Train {
+
+    static LOCO_DIESEL_MODEL = null;
+    static LOCO_STEAM_MODEL = null;
+    static CARRIAGE_MODEL = null;
+    static async loadResources() {
+        const locoDieselModelReq = Model.loadMeshes(Renderer.OBJ_LAYOUT, [
+            {
+                tex: "/res/models/loco_diesel.png",
+                obj: "/res/models/loco_diesel.obj"
+            }
+        ]);
+        const locoSteamModelReq = Model.loadMeshes(Renderer.OBJ_LAYOUT, [
+            {
+                tex: "/res/models/loco_steam.png",
+                obj: "/res/models/loco_steam.obj"
+            }
+        ]);
+        const carriageModelReq = Model.loadMeshes(Renderer.OBJ_LAYOUT, [
+            {
+                tex: "/res/models/carriage.png",
+                obj: "/res/models/carriage.obj"
+            }
+        ]);
+        Train.LOCO_DIESEL_MODEL = await locoDieselModelReq;
+        Train.LOCO_STEAM_MODEL = await locoSteamModelReq;
+        Train.CARRIAGE_MODEL = await carriageModelReq;
+    }
+
+
+    constructor(trainState) {
+        this.color = trainState.color;
+        this.locoType = trainState.locoType;
+        this.carCount = trainState.carCount;
+    }
+
+    onNewState(trainState) {
+        
+    }
+
+}
+
+
 export class TrackNetwork {
 
     static TRACK_TESSELLATION_RES = 10;

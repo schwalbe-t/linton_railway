@@ -6,20 +6,33 @@ using Newtonsoft.Json;
 namespace Linton.Game;
 
 
-public sealed class GameState
+public sealed class GameState(int sizeT, TrackNetwork trackNetwork)
 {
 
     [JsonProperty("regions")]
-    public readonly RegionMap Regions;
+    public readonly RegionMap Regions = new(sizeT, trackNetwork.Stations);
 
     [JsonProperty("switches")]
     public readonly ConcurrentDictionary<TrackConnection, ushort> Switches
         = new();
 
-    public GameState(int sizeT, TrackNetwork trackNetwork)
-    {
-        Regions = new RegionMap(sizeT, trackNetwork.Stations);
-    }
+    [JsonProperty("trains")]
+    public readonly ConcurrentDictionary<Guid, Train> Trains = new();
+
+    [JsonIgnore]
+    Lock _lock = new();
+
+    static readonly TimeSpan TrainSummonInterval
+        = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// The maximum number of trains in the network for every chunk the network
+    /// occupies.
+    /// </summary>
+    const int TrainCountLimit = 5;
+
+    [JsonIgnore]
+    DateTime _nextTrainSummon = DateTime.MinValue;
 
     /// <summary>
     /// Represents an update to a "switch" on the network.
@@ -73,6 +86,34 @@ public sealed class GameState
                 Switches.Remove(c, out _);
             }
         }
+    }
+
+    public void UpdateTrains(TrackNetwork network, Random rng, float deltaTime)
+    {
+        foreach (var (trainId, train) in Trains)
+        {
+            train.Update(network, this, rng, deltaTime);
+            if (train.AtEnd) { Trains.Remove(trainId, out _); }
+        }
+    }
+
+    public void SummonTrains(
+        int sizeC, TrackNetwork network, RoomSettings settings, Random rng
+    )
+    {
+        DateTime now = DateTime.UtcNow;
+        lock (_lock)
+        {
+            if (now < _nextTrainSummon) { return; }
+            _nextTrainSummon = now + TrainSummonInterval;
+        }
+        int maxNumTrains = sizeC * sizeC * TrainCountLimit;
+        if (Trains.Count >= maxNumTrains) { return; }
+        int entranceCount = network.Entrances.Count;
+        TrackConnection start = network.Entrances[rng.Next(entranceCount)];
+        Train train = new(network, start, settings, rng);
+        Guid trainId = Guid.NewGuid();
+        Trains[trainId] = train;
     }
 
 }

@@ -47,9 +47,11 @@ public sealed record LinSpline(
     /// <summary>
     /// Returns the coordinates of a point along the spline.
     /// </summary>
-    public sealed class Point
+    public struct Point()
     {
+        [JsonProperty("segmentI")]
         public int SegmentI = 0;
+        [JsonProperty("dist")]
         public float Distance = 0f;
     }
 
@@ -59,9 +61,9 @@ public sealed record LinSpline(
     /// <param name="point">the point along the spline</param>
     /// <param name="distance">the distance to advance the point by</param>
     /// <returns>the distance that was advanced</returns>
-    public float AdvancePoint(Point point, float distance)
+    public float AdvancePoint(ref Point point, float distance)
     {
-        if (distance < 0f) { return ReversePoint(point, -distance); }
+        if (distance < 0f) { return ReversePoint(ref point, -distance); }
         float remDist = point.Distance + distance;
         point.Distance = 0f;
         while (point.SegmentI < Segments.Count)
@@ -87,9 +89,9 @@ public sealed record LinSpline(
     /// <param name="point">the point along the spline</param>
     /// <param name="distance">the distance to reverse the point by</param>
     /// <returns>the distance that was reversed</returns>
-    public float ReversePoint(Point point, float distance)
+    public float ReversePoint(ref Point point, float distance)
     {
-        if (distance < 0f) { return AdvancePoint(point, -distance); }
+        if (distance < 0f) { return AdvancePoint(ref point, -distance); }
         if (distance <= point.Distance)
         {
             point.Distance -= distance;

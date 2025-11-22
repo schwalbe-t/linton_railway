@@ -10,9 +10,6 @@ namespace Linton.Game;
 /// <summary>
 /// Represents an instance of the game.
 /// </summary>
-/// <param name="playing">
-/// a map of (playerId -> playerName) for all participating players
-/// </param>
 public class GameInstance
 {
 
@@ -34,6 +31,8 @@ public class GameInstance
     public readonly string WorldInfoString;
 
     public readonly GameState State;
+
+    DateTime _lastFrameTime = DateTime.MinValue;
 
     public GameInstance(
         Dictionary<Guid, string> playing, RoomSettings settings
@@ -64,7 +63,7 @@ public class GameInstance
         while (unallocated.Count > 0)
         {
             int i;
-            lock(_lock) {
+            lock (_lock) {
                 i = _rng.Next(unallocated.Count);
             }
             AllocateRegion(unallocated[i]);
@@ -114,7 +113,17 @@ public class GameInstance
             if (!_playing.Values.Any(p => p.IsConnected))
             {
                 _hasEnded = true;
+                return;
             }
+            DateTime now = DateTime.UtcNow;
+            float deltaTime = 0f;
+            if (_lastFrameTime != DateTime.MinValue)
+            {
+                deltaTime = (float)(now - _lastFrameTime).TotalSeconds;
+            }
+            _lastFrameTime = now;
+            State.UpdateTrains(Network, _rng, deltaTime);
+            State.SummonTrains(Terrain.SizeC, Network, Settings, _rng);
         }
     }
 

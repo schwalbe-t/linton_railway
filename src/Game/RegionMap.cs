@@ -24,7 +24,7 @@ public sealed class RegionMap
         Player? _owner = null;
         /// <summary>The current owner of the region (or else null)</summary>
         [JsonIgnore]
-        public Player? Owner { get { lock(_lock) { return _owner; } } }
+        public Player? Owner { get { lock (_lock) { return _owner; } } }
 
         /// <summary>
         /// Creates a new region centered around a given track station.
@@ -55,7 +55,7 @@ public sealed class RegionMap
         /// <returns>true if made owner, false if region already taken</returns>
         public bool TryTake(Player p)
         {
-            lock(_lock)
+            lock (_lock)
             {
                 if (_owner is not null) { return false; }
                 _owner = p;

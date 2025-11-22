@@ -46,7 +46,7 @@ public abstract record InEvent
     /// <summary>
     /// Used by clients to send messages to all other players connected to the
     /// same room.
-    /// (message length must not exeed 'ContentLengthLimit')
+    /// (message length must not exceed 'LengthLimit')
     /// </summary>
     /// <param name="Contents"></param>
     public sealed record ChatMessage(
@@ -55,5 +55,16 @@ public abstract record InEvent
     {
         public const int LengthLimit = 256;
     }
+
+    /// <summary>
+    /// Used to request a number of updates to the network switch states.
+    /// Updates to switches in a region not owned by the requesting player
+    /// shall be ignored.
+    /// </summary>
+    /// <param name="Updates">the list of updates</param>
+    public sealed record SwitchStateUpdates(
+        [property: JsonProperty("updates")]
+        List<GameState.SwitchStateUpdate> Updates
+    ) : InEvent;
 
 }

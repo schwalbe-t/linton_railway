@@ -201,7 +201,6 @@ const SOCKET_ROUTE = SOCKET_PROTOCOL + `//${location.host}/ws/room`;
 const BASE_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 16000;
 
-let socket;
 let reconnectDelayMs = BASE_RECONNECT_DELAY_MS;
 let crashed = false;
 
@@ -211,7 +210,7 @@ function connectWebsocket(roomId, username) {
     if (sessionId) {
         url.searchParams.append("sessionId", sessionId);
     }
-    socket = new WebSocket(url.toString());
+    window.socket = new WebSocket(url.toString());
     socket.addEventListener("open", () => {
         hideRoomError();
         reconnectDelayMs = BASE_RECONNECT_DELAY_MS;

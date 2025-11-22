@@ -24,6 +24,7 @@ public sealed class InEventConverter : JsonConverter
             "is_ready" => typeof(InEvent.IsReady),
             "configure_room" => typeof(InEvent.ConfigureRoom),
             "chat_message" => typeof(InEvent.ChatMessage),
+            "switch_state_updates" => typeof(InEvent.SwitchStateUpdates),
             _ => throw new JsonSerializationException(
                 $"Unknown InEvent type '{type}'"
             )

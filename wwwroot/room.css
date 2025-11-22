@@ -1,5 +1,6 @@
 
 #room-error-overlay {
+    z-index: 99999999;
     position: absolute;
     top: 0px;
     left: 0px;
@@ -95,13 +96,14 @@
     min-width: 6rem;
 }
 .setting-container > .setting-positive {
-    color: var(--green);
+    color: var(--green) !important;
 }
 .setting-container > .setting-negative {
-    color: var(--red);
+    color: var(--red) !important;
 }
 
 #chat-container {
+    z-index: 99999999;
     position: absolute;
     left: 2rem;
     bottom: 2rem;
@@ -143,4 +145,51 @@
     width: 100vw;
     height: 100vh;
     image-rendering: crisp-edges;
+}
+#game-world-interacts {
+    position: absolute;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+}
+.game-signal-container {
+    pointer-events: auto;
+    position: absolute;
+    transform: translate(-50%, calc(-100% + 0.5rem));
+    width: 0.5rem;
+    height: 1.0rem;
+    padding: 0.5rem;
+}
+.game-signal-container::before {
+    display: block;
+    content: " ";
+    width: 0.125rem;
+    height: 1rem;
+    border-radius: 0.0625rem;
+    transform: translate(0.1875rem, 0px);
+    background: var(--mid-white);
+}
+.game-signal-container::after {
+    display: block;
+    content: " ";
+    transform: translate(0px, -1rem);
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    outline: 2px solid var(--mid-white);
+}
+.game-signal-container:hover {
+    cursor: pointer;
+}
+.game-signal-container:hover::before {
+    background: var(--bright-white);
+}
+.game-signal-container:hover::after {
+    outline-color: var(--bright-white);
+}
+.game-signal-container.signal-danger::after {
+    background: var(--red);
+}
+.game-signal-container.signal-proceed::after {
+    background: var(--green);
 }

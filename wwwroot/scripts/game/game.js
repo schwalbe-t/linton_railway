@@ -8,7 +8,7 @@ import {
 } from "./graphics.js";
 import { Renderer } from "./renderer.js";
 import { HeightMap, Terrain } from "./terrain.js";
-import { key, resetInput } from "./input.js";
+import { resetInput } from "./input.js";
 import { TrackNetwork } from "./network.js";
 
 const RESOURCES = resources.load({

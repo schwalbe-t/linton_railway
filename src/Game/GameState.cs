@@ -1,5 +1,6 @@
 
 using System.Collections.Concurrent;
+using System.Numerics;
 using Newtonsoft.Json;
 
 namespace Linton.Game;
@@ -18,20 +19,58 @@ public sealed class GameState
     public GameState(int sizeT, TrackNetwork trackNetwork)
     {
         Regions = new RegionMap(sizeT, trackNetwork.Stations);
-        // TODO: temporary for testing
-        Random rng = new();
-        for (int segI = 0; segI < trackNetwork.Segments.Count; segI += 1)
+    }
+
+    /// <summary>
+    /// Represents an update to a "switch" on the network.
+    /// Specifically, it makes it so the end of the segment specified by
+    /// 'Connection' is linked to the 'BranchIdx'-th connection on that end
+    /// of the segment.
+    /// If 'BranchIdx' is null, any previously existing connection is unset.
+    /// </summary>
+    /// <param name="Connection">the segment end to configure</param>
+    /// <param name="BranchIdx">the branch to connect to</param>
+    public record struct SwitchStateUpdate(
+        [property: JsonProperty("connection")] TrackConnection Connection,
+        [property: JsonProperty("branchIdx")] ushort? BranchIdx = null
+    );
+
+    /// <summary>
+    /// Applies the given list of switch state updates to the current game
+    /// state.
+    /// </summary>
+    /// <param name="updates">the updates to apply</param>
+    /// <param name="playerId">the player id to operate under</param>
+    /// <param name="network">the network the switches are on</param>
+    public void UpdateSwitchStates(
+        List<SwitchStateUpdate> updates, 
+        Guid playerId, TrackNetwork network
+    )
+    {
+        bool IsRegionOwner(TrackConnection conn)
         {
-            TrackSegment seg = trackNetwork.Segments[segI];
-            if (seg.ConnectsLow.Count >= 2)
+            TrackSegment seg = network.Segments[conn.SegmentIdx];
+            Vector3 end = conn.ToHighEnd ? seg.HighEnd : seg.LowEnd;
+            int endTX = (int)Math.Round(end.X.UnitsToTiles());
+            int endTZ = (int)Math.Round(end.Z.UnitsToTiles());
+            RegionMap.Region region = Regions.RegionOfTile(endTX, endTZ);
+            return region.Owner?.Id == playerId;
+        }
+        foreach (SwitchStateUpdate update in updates)
+        {
+            TrackConnection c = update.Connection;
+            if (c.SegmentIdx < 0) { continue; }
+            if (c.SegmentIdx >= network.Segments.Count) { continue; }
+            if (!IsRegionOwner(c)) { continue; }
+            TrackSegment s = network.Segments[c.SegmentIdx];
+            int branchC = (c.ToHighEnd ? s.ConnectsHigh : s.ConnectsLow).Count;
+            if (update.BranchIdx is ushort i && i < branchC)
             {
-                ushort i = (ushort)rng.Next(seg.ConnectsLow.Count);
-                Switches[new TrackConnection(segI, false)] = i;
+                Switches[c] = i;
             }
-            if (seg.ConnectsHigh.Count >= 2)
+            else
             {
-                ushort i = (ushort)rng.Next(seg.ConnectsHigh.Count);
-                Switches[new TrackConnection(segI, true)] = i;
+                Switches.Remove(c, out _);
             }
         }
     }

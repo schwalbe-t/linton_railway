@@ -69,15 +69,22 @@ public sealed record TrackSegment(
         Vector3 b;
         if (isHighEnd)
         {
-            a = QSpline.Segments.Count >= 2
-                ? QSpline.Segments[^2].To
-                : QSpline.Start;
-            b = QSpline.Segments[^1].To;
+            QuadSpline.Segment last = QSpline.Segments[^1];
+            a = last.Ctrl;
+            b = last.To;
+            if (a == b)
+            {
+                a = QSpline.Segments.Count == 1
+                    ? QSpline.Start
+                    : QSpline.Segments[^2].To;
+            }
         }
         else
         {
-            a = QSpline.Segments[0].To;
+            QuadSpline.Segment first = QSpline.Segments[0];
+            a = first.Ctrl;
             b = QSpline.Start;
+            if (a == b) { a = first.To; }
         }
         return Vector3.Normalize(b - a);
     }
@@ -143,6 +150,15 @@ public sealed class TrackNetwork
     /// </summary>
     [JsonProperty("segments")]
     public readonly List<TrackSegment> Segments;
+
+    /// <summary>
+    /// Since track networks are generated as pairs of doubled tracks,
+    /// this list contains a boolean for every segment in the network that
+    /// tells wether it was generated towards the right or the left of the
+    /// original single track spline (relative to the direction low -> high).
+    /// </summary>
+    [JsonProperty("segmentsRight")]
+    public readonly List<bool> SegmentsRight;
 
     /// <summary>
     /// Maps a point in the world to any segments whose "low" or "high"
@@ -249,15 +265,17 @@ public sealed class TrackNetwork
     /// Constructs a new track network.
     /// </summary>
     /// <param name="splines">the segment splines</param>
+    /// <param name="splinesRight">spline data for 'SegmentsRight'</param>
     /// <param name="stations">the stations</param>
     /// <param name="entrances">positions of entrances</param>
     public TrackNetwork(
-        List<QuadSpline> splines, List<TrackStation> stations,
-        List<Vector3> entrances
+        List<QuadSpline> splines, List<bool> splinesRight,
+        List<TrackStation> stations, List<Vector3> entrances
     )
     {
         Stations = stations;
         Segments = splines.Select(BuildSegment).ToList();
+        SegmentsRight = splinesRight;
         for (int segmentIdx = 0; segmentIdx < Segments.Count; segmentIdx += 1)
         {
             BuildEndings(Segments[segmentIdx], segmentIdx);

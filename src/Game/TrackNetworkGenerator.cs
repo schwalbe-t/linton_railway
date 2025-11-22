@@ -684,7 +684,9 @@ public sealed class TrackNetworkGenerator
     static Vector3 DoubleRight(Vector3 p, Vector3 d)
         => p + (Vector3.Cross(d, TrackUp) * DoubleTrackOffset);
 
-    void DoubleTrackSpline(QuadSpline s, List<QuadSpline> o)
+    void DoubleTrackSpline(
+        QuadSpline s, List<QuadSpline> o, List<bool> oIsRight
+    )
     {
         if (s.Segments.Count == 0) { return; }
         Vector3 startDir = Vector3.Normalize(s.Segments[0].Ctrl - s.Start);
@@ -710,16 +712,19 @@ public sealed class TrackNetworkGenerator
         }
         Vector3 leftStart = DoubleLeft(s.Start, startDir);
         o.Add(new QuadSpline(Start: leftStart, Segments: left));
+        oIsRight.Add(false);
         Vector3 rightStart = DoubleRight(s.Start, startDir);
         o.Add(new QuadSpline(Start: rightStart, Segments: right));
+        oIsRight.Add(true);
         TryRegisterEntrance(rightStart);
     }
 
     public TrackNetwork Build()
     {
         List<QuadSpline> doubled = new();
-        _splines.ForEach(s => DoubleTrackSpline(s, doubled));
-        return new TrackNetwork(doubled, _stations, _entrances);
+        List<bool> isRight = new();
+        _splines.ForEach(s => DoubleTrackSpline(s, doubled, isRight));
+        return new TrackNetwork(doubled, isRight, _stations, _entrances);
     }
 
 }

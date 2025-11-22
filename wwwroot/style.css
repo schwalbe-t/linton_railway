@@ -42,6 +42,7 @@ body {
     color: var(--text-sub);
     font-family: "Inter";
     margin: 0px;
+    overflow: hidden;
 }
 
 button {
@@ -86,7 +87,7 @@ button:disabled {
 button:disabled:hover {
     background: inherit;
     color: var(--bg-front);
-    cursor: inherit;
+    cursor: not-allowed;
 }
 button, input {
     margin-top: 0.5rem;

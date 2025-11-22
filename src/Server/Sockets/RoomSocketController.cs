@@ -1,6 +1,7 @@
 
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
+using Linton.Game;
 using Linton.Server.Sockets;
 using Newtonsoft.Json;
 
@@ -158,6 +159,14 @@ public sealed class RoomSocketController(ILogger<RoomSocketController> logger)
                 room.BroadcastEvent(new OutEvent.ChatMessage(
                     senderName, SenderId: session.PlayerId, message.Contents
                 ));
+                return;
+
+            case InEvent.SwitchStateUpdates updates:
+                if (room.State is not RoomState.Playing playing) { return; }
+                GameInstance game = playing.Game;
+                game.State.UpdateSwitchStates(
+                    updates.Updates, session.PlayerId, game.Network
+                );
                 return;
         }
         // events that require client to be owner

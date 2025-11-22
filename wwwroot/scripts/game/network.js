@@ -5,6 +5,7 @@ import {
     Geometry, Model, Shader, Texture, TextureFilter, TextureFormat
 } from "./graphics.js";
 import { Renderer } from "./renderer.js";
+import { Signal } from "./signals.js";
 import { linspline, quadspline } from "./spline.js";
 import { chunks, tiles, units } from "./terrain.js";
 
@@ -232,14 +233,109 @@ export class TrackNetwork {
         });
     }
 
+    static SWITCH_SIG_S_DIST = 14; // spline start -> 1st ctrl pt
+    static SWITCH_SIG_E_DIST = 5; // 1st ctrl pt -> 2nd ctrl pt
+    static SWITCH_SIG_UP = new Vector3([0, 1, 0]);
+    static SWITCH_SIG_RIGHT_DIST = 2;
+
+    buildSwitchSignals(networkDetails) {
+        const updateBranchSignal = (segmentIdx, toHighEnd, newState) => {
+            const updates = [];
+            const hasBranch = c => c.segmentIdx === segmentIdx
+                && c.toHighEnd === toHighEnd;
+            for (let segI = 0; segI < this.segments.length; segI += 1) {
+                const seg = this.segments[segI];
+                const lowBranchIdx = seg.connectsLow.findIndex(hasBranch)
+                if (lowBranchIdx !== -1) {
+                    updates.push({
+                        connection: { segmentIdx: segI, toHighEnd: false },
+                        branchIdx: newState ? lowBranchIdx : null
+                    });
+                }
+                const highBranchIdx = seg.connectsHigh.findIndex(hasBranch)
+                if (highBranchIdx !== -1) {
+                    updates.push({
+                        connection: { segmentIdx: segI, toHighEnd: true },
+                        branchIdx: newState ? highBranchIdx : null
+                    });
+                }
+            }
+            window.socket.send(JSON.stringify({
+                type: "switch_state_updates",
+                updates
+            }));
+        };
+        const advancePoint = (spline, point, dist, reverse) => {
+            const d = dist * (reverse ? -1 : 1);
+            linspline.advancePoint(spline, point, d);
+        };
+        const addBranchSignal = (segmentIdx, toHighEnd) => {
+            const s = this.segments[segmentIdx].tesSpline;
+            const isRight = networkDetails.segmentsRight[segmentIdx];
+            const point = linspline.Point();
+            if (toHighEnd) { linspline.advancePointToEnd(s, point); }
+            const start = linspline.atPoint(s, point);
+            advancePoint(s, point, +TrackNetwork.SWITCH_SIG_S_DIST, toHighEnd);
+            advancePoint(s, point, +TrackNetwork.SWITCH_SIG_E_DIST, toHighEnd);
+            advancePoint(s, point, -TrackNetwork.SWITCH_SIG_E_DIST, toHighEnd);
+            const first = linspline.atPoint(s, point);
+            advancePoint(s, point, +TrackNetwork.SWITCH_SIG_E_DIST, toHighEnd);
+            const second = linspline.atPoint(s, point);
+            const dir = second.clone().subtract(first);
+            const reqDist = TrackNetwork.SWITCH_SIG_S_DIST
+                + TrackNetwork.SWITCH_SIG_E_DIST;
+            const startToSecond = second.clone().subtract(start);
+            const missingDist = Math.max(reqDist - startToSecond.length, 0);
+            const sigTrackBase = second.clone();
+            if (missingDist > 1) {
+                second.add(startToSecond.clone().scale(missingDist));
+            }
+            const sigOffset = dir.cross(TrackNetwork.SWITCH_SIG_UP)
+                .normalize().scale(TrackNetwork.SWITCH_SIG_RIGHT_DIST);
+            if (!isRight) { sigOffset.negate(); }
+            if (toHighEnd) { sigOffset.negate(); }
+            const sigPos = sigTrackBase.clone().add(sigOffset);
+            const newSignal = new Signal(
+                sigPos,
+                ns => updateBranchSignal(segmentIdx, toHighEnd, ns)
+            );
+            this.signals.push(newSignal);
+            return newSignal;
+        };
+        this.segmentSignals = new Map();
+        const addBranch = c => {
+            let endings = this.segmentSignals.get(c.segmentIdx);
+            if (endings === undefined) {
+                endings = { toLow: null, toHigh: null };
+                this.segmentSignals.set(c.segmentIdx, endings);
+            }
+            if (!c.toHighEnd && endings.toLow === null) {
+                endings.toLow = addBranchSignal(c.segmentIdx, false);
+            }
+            if (c.toHighEnd && endings.toHigh === null) {
+                endings.toHigh = addBranchSignal(c.segmentIdx, true);
+            }
+        };
+        for (const s of this.segments) {
+            if (s.connectsLow.length >= 2) { 
+                s.connectsLow.forEach(addBranch);
+            }
+            if (s.connectsHigh.length >= 2) {
+                s.connectsHigh.forEach(addBranch);
+            }
+        }
+    }
+
     constructor(worldDetails, elev) {
         this.segments = worldDetails.network.segments
             .map(s => TrackNetwork.generateSegmentMesh(s, elev));
         this.buildStationInstances(worldDetails.network, elev);
         this.sizeT = chunks.toTiles(worldDetails.terrain.sizeC);
         this.prepareTileRegionTex(worldDetails.network);
-        this.buildSwitchHighlights();
         this.visibleSwitchHighlights = [];
+        this.buildSwitchHighlights();
+        this.signals = [];
+        this.buildSwitchSignals(worldDetails.network);
     }
 
     static REGION_MAX_WORLD_CHUNK_LEN = 60;
@@ -306,17 +402,33 @@ export class TrackNetwork {
     }
 
     updateSwitchStates(switches) {
-        // TODO! uncomment
-        // this.visibleSwitchHighlights = switches.map(sw => {
-        //     const segmentIdx = sw.key.segmentIdx;
-        //     const segment = this.switchHighlights[segmentIdx];
-        //     const branches = sw.key.toHighEnd ? segment.high : segment.low;
-        //     return branches[sw.value];
-        // });
-        this.visibleSwitchHighlights = [];
-        for (const s of this.switchHighlights) {
-            if (s.low.length >= 2) { this.visibleSwitchHighlights.push(...s.low); }
-            if (s.high.length >= 2) { this.visibleSwitchHighlights.push(...s.high); }
+        this.visibleSwitchHighlights = switches.map(sw => {
+            const segmentIdx = sw.key.segmentIdx;
+            const segment = this.switchHighlights[segmentIdx];
+            const branches = sw.key.toHighEnd ? segment.high : segment.low;
+            return branches[sw.value];
+        });
+        const updateSignalState = (sigSegIdx, sigToHigh, sig) => {
+            let newState = false;
+            for (const sw of switches) {
+                const swSeg = this.segments[sw.key.segmentIdx];
+                const branches = sw.key.toHighEnd
+                ? swSeg.connectsHigh : swSeg.connectsLow;
+                const checkBranch = (conn, brIdx) => {
+                    if (conn.segmentIdx !== sigSegIdx) { return; }
+                    if (conn.toHighEnd !== sigToHigh) { return; }
+                    if (sw.value !== brIdx) { return; }
+                    newState = true;
+                }
+                branches.forEach(checkBranch);
+            }
+            sig.setState(newState);
+        };
+        for (let segI = 0; segI < this.segments.length; segI += 1) {
+            const s = this.segmentSignals.get(segI);
+            if (!s) { continue; }
+            if (s.toLow !== null) { updateSignalState(segI, false, s.toLow); }
+            if (s.toHigh !== null) { updateSignalState(segI, true, s.toHigh); }
         }
     }
 
@@ -362,6 +474,7 @@ export class TrackNetwork {
                 TrackNetwork.TRACK_HIGHLIGHT_SHADER
             );
         }
+        this.signals.forEach(s => s.update(renderer));
     }
  
     delete() {
@@ -374,6 +487,7 @@ export class TrackNetwork {
             s.low.forEach(h => h.geometry.delete());
             s.high.forEach(h => h.geometry.delete());
         });
+        this.signals.forEach(s => s.delete());
     }
 
 }

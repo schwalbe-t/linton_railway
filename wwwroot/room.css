@@ -193,3 +193,12 @@
 .game-signal-container.signal-proceed::after {
     background: var(--green);
 }
+.game-region-text {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+    color: var(--dark-white);
+    font-size: 2rem;
+    font-weight: bold;
+    white-space: nowrap;
+}

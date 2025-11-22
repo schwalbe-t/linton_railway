@@ -9,7 +9,7 @@ public class Player(Guid id, string name)
     [JsonProperty("id")]
     public readonly Guid Id = id;
     
-    [JsonIgnore]
+    [JsonProperty("name")]
     public readonly string Name = name;
     
     [JsonIgnore]

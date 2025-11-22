@@ -5,7 +5,7 @@ import {
     Geometry, Model, Shader, Texture, TextureFilter, TextureFormat
 } from "./graphics.js";
 import { Renderer } from "./renderer.js";
-import { Signal } from "./signals.js";
+import { RegionText, Signal } from "./world_ui.js";
 import { linspline, quadspline } from "./spline.js";
 import { chunks, tiles, units } from "./terrain.js";
 
@@ -336,6 +336,7 @@ export class TrackNetwork {
         this.buildSwitchHighlights();
         this.signals = [];
         this.buildSwitchSignals(worldDetails.network);
+        this.regionTexts = [];
     }
 
     static REGION_MAX_WORLD_CHUNK_LEN = 60;
@@ -382,16 +383,28 @@ export class TrackNetwork {
     }
 
     updateTileRegionTex(regions) {
+        this.regionTexts.forEach(t => t.delete());
+        this.regionTexts = [];
         const sizeC = Math.floor(tiles.toChunks(this.sizeT));
         for (let cx = 0; cx < sizeC; cx += 1) {
             for (let cz = 0; cz < sizeC; cz += 1) {
                 const i = cz * sizeC + cx;
                 const owner = regions.chunks[i].owner;
-                this.stationLocBuffData[i * 4 + 2] = owner === null 
+                const offset = i * 4;
+                this.stationLocBuffData[offset + 2] = owner === null 
                     ? TrackNetwork.STATION_UNOWNED
                     : owner.id === playerId
                         ? TrackNetwork.STATION_OF_CLIENT
                         : TrackNetwork.STATION_OF_ENEMY;
+                if (owner !== null && owner.id !== playerId) {
+                    const center = new Vector3(
+                        tiles.toUnits(this.stationLocBuffData[offset + 0]), 0,
+                        tiles.toUnits(this.stationLocBuffData[offset + 1])
+                    );
+                    this.regionTexts.push(new RegionText(
+                        center, owner.name
+                    ));
+                }
             }
         }
         this.stationLocBuff.upload(this.stationLocBuffData);
@@ -475,6 +488,7 @@ export class TrackNetwork {
             );
         }
         this.signals.forEach(s => s.update(renderer));
+        this.regionTexts.forEach(t => t.update(renderer));
     }
  
     delete() {
@@ -488,6 +502,7 @@ export class TrackNetwork {
             s.high.forEach(h => h.geometry.delete());
         });
         this.signals.forEach(s => s.delete());
+        this.regionTexts.forEach(t => t.delete());
     }
 
 }

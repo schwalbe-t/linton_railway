@@ -9,12 +9,15 @@ import {
 import { Renderer } from "./renderer.js";
 import { HeightMap, Terrain } from "./terrain.js";
 import { resetInput } from "./input.js";
-import { TrackNetwork } from "./network.js";
+import { TrackNetwork, Train } from "./network.js";
+import { WorldUi } from "./world_ui.js";
+import { Matrix4 } from "../libs/math.gl.js";
 
 const RESOURCES = resources.load({
     rendererResources: Renderer.loadResources(),
     terrainResources: Terrain.loadResources(),
-    networkResources: TrackNetwork.loadResources()
+    networkResources: TrackNetwork.loadResources(),
+    trainResources: Train.loadResources()
 });
 
 window.addEventListener("load", () => {
@@ -53,7 +56,7 @@ function onReceiveGameState(state) {
     if (terrain === null) { return; }
     network.updateTileRegionTex(state.regions);
     network.updateSwitchStates(state.switches);
-    console.log(state.trains);
+    network.updateTrains(state.trains);
 }
 window.onReceiveGameState = onReceiveGameState;
 
@@ -67,6 +70,7 @@ gameloop.onFrame(deltaTime => {
         updateGraphics();
         camera.configureRenderer(renderer);
         renderer.update(defaultFramebuffer, network, deltaTime);
+        WorldUi.VIEW_PROJECTION = new Matrix4(renderer.viewProj);
         if (gprofiles.current().shadowMapping) {
             renderer.prepareRenderShadows();
             terrain.render(renderer);

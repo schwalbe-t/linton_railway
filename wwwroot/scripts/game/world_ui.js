@@ -10,7 +10,7 @@ export const getWorldUiContainer = () => document
 export class WorldUi {
 
     constructor(worldPos, element) {
-        this.pos = worldPos;
+        this.pos = new Vector3(worldPos);
         this.element = element;
         getWorldUiContainer().appendChild(this.element);
     }
@@ -24,7 +24,7 @@ export class WorldUi {
         screenPos
             .scale([1, -1, 1])
             .scale(0.5).add([0.5, 0.5, 0])
-            .scale([buffer.width, buffer.height, 1]);
+            .scale([buffer.displayWidth, buffer.displayHeight, 1]);
         this.element.style.left = `${screenPos.x}px`;
         this.element.style.top = `${screenPos.y}px`;
         const zIndex = Math.round((1.0 - screenPos.z) * WorldUi.MAX_Z_INDEX);

@@ -55,14 +55,14 @@ export const linspline = Object.freeze({
         const start = segmentI === 0? spline.start
             : spline.segments[segmentI - 1];
         const end = spline.segments[segmentI];
-        return start.clone().lerp(end, t);
+        return start.clone().lerp(end.clone(), t);
     },
 
     segmentLength: function(spline, segmentI) {
         const end = spline.segments[segmentI];
         const start = segmentI === 0? spline.start
             : spline.segments[segmentI - 1];
-        return start.distance(end);
+        return start.clone().distance(end);
     },
 
     Point: function(existing) {
@@ -250,6 +250,14 @@ export const linspline = Object.freeze({
         const maxY = Math.max(start.y, end.y);
         const maxZ = Math.max(start.z, end.z);
         return new Vector3(maxX, maxY, maxZ);
+    },
+
+    computeLength: function(spline) {
+        let l = 0.0;
+        for (let segI = 0; segI < spline.segments.length; segI += 1) {
+            l += linspline.segmentLength(spline, segI);
+        }
+        return l;
     }
 
 });

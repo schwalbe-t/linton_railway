@@ -61,9 +61,13 @@ public sealed record LinSpline(
     /// <param name="point">the point along the spline</param>
     /// <param name="distance">the distance to advance the point by</param>
     /// <returns>the distance that was advanced</returns>
-    public float AdvancePoint(ref Point point, float distance)
+    public float AdvancePoint(ref Point point, float distance, out bool atEnd)
     {
-        if (distance < 0f) { return ReversePoint(ref point, -distance); }
+        if (distance < 0f)
+        {
+            return ReversePoint(ref point, -distance, out atEnd);
+        }
+        atEnd = false;
         float remDist = point.Distance + distance;
         point.Distance = 0f;
         while (point.SegmentI < Segments.Count)
@@ -79,6 +83,7 @@ public sealed record LinSpline(
         }
         point.SegmentI = Segments.Count - 1;
         point.Distance = SegmentLength(point.SegmentI);
+        atEnd = true;
         return distance - remDist;
     }
 
@@ -89,9 +94,13 @@ public sealed record LinSpline(
     /// <param name="point">the point along the spline</param>
     /// <param name="distance">the distance to reverse the point by</param>
     /// <returns>the distance that was reversed</returns>
-    public float ReversePoint(ref Point point, float distance)
+    public float ReversePoint(ref Point point, float distance, out bool atEnd)
     {
-        if (distance < 0f) { return AdvancePoint(ref point, -distance); }
+        if (distance < 0f)
+        {
+            return AdvancePoint(ref point, -distance, out atEnd);
+        }
+        atEnd = false;
         if (distance <= point.Distance)
         {
             point.Distance -= distance;
@@ -110,6 +119,7 @@ public sealed record LinSpline(
             }
             remDist -= segLen;
         }
+        atEnd = true;
         return distance - remDist;
     }
 
@@ -123,5 +133,20 @@ public sealed record LinSpline(
     {
         float t = point.Distance / SegmentLength(point.SegmentI);
         return InSegment(point.SegmentI, t);
+    }
+
+    /// <summary>
+    /// Computes the length of the spline by summing up the lengths of all
+    /// segments.
+    /// </summary>
+    /// <returns>the total length of the spline</returns>
+    public float ComputeLength()
+    {
+        float l = 0.0f;
+        for (int segI = 0; segI < Segments.Count; segI += 1)
+        {
+            l += SegmentLength(segI);
+        }
+        return l;
     }
 }

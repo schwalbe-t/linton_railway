@@ -1,5 +1,5 @@
 
-import { Matrix4, Vector3 } from "../libs/math.gl.js";
+import { Matrix4, Vector3, Vector4 } from "../libs/math.gl.js";
 import {
     DepthTesting, Framebuffer, UniformBuffer,
     Geometry, Model, Shader, Texture, TextureFilter, TextureFormat
@@ -10,23 +10,17 @@ import { linspline, quadspline } from "./spline.js";
 import { chunks, tiles, units } from "./terrain.js";
 
 
-/*
-    Train colors:
-    "green"   = #437f5d
-    "cyan"    = #5a8b97
-    "magenta" = #aa749e
-    "red"     = #ba5e69
-    "orange"  = #d3925b
-
-    Loco types:
-    "diesel"
-    "steam"
-*/
-
 export class Train {
 
-    static LOCO_DIESEL_MODEL = null;
-    static LOCO_STEAM_MODEL = null;
+    static TRAIN_COLORS = Object.freeze({
+        "green":   new Vector4( 67, 127,  93, 255).scale(1/255),
+        "cyan":    new Vector4( 90, 139, 151, 255).scale(1/255),
+        "magenta": new Vector4(170, 116, 158, 255).scale(1/255),
+        "red":     new Vector4(186,  94, 105, 255).scale(1/255),
+        "orange":  new Vector4(211, 146,  91, 255).scale(1/255)
+    });
+
+    static LOCO_MODELS = null;
     static CARRIAGE_MODEL = null;
     static async loadResources() {
         const locoDieselModelReq = Model.loadMeshes(Renderer.OBJ_LAYOUT, [
@@ -47,8 +41,10 @@ export class Train {
                 obj: "/res/models/carriage.obj"
             }
         ]);
-        Train.LOCO_DIESEL_MODEL = await locoDieselModelReq;
-        Train.LOCO_STEAM_MODEL = await locoSteamModelReq;
+        Train.LOCO_MODELS = Object.freeze({
+            "diesel": await locoDieselModelReq,
+            "steam": await locoSteamModelReq
+        });
         Train.CARRIAGE_MODEL = await carriageModelReq;
     }
 
@@ -57,10 +53,82 @@ export class Train {
         this.color = trainState.color;
         this.locoType = trainState.locoType;
         this.carCount = trainState.carCount;
+        this.occupiedSegments = [...trainState.occupiedSegments];
+        this.segmentDist = trainState.segmentDist;
     }
 
     onNewState(trainState) {
-        
+        // TODO! interpolation
+        this.occupiedSegments = [...trainState.occupiedSegments];
+        this.segmentDist = trainState.segmentDist;
+    }
+
+    static BOGEY_SPAN = 3.0;
+    static CAR_INTERVAL = 5.75;
+    static CAR_BOGEY_SPACING = Train.CAR_INTERVAL - Train.BOGEY_SPAN;
+
+    static TRAIN_UP = new Vector3(0, 1, 0);
+
+    render(renderer, network) {
+        // TODO! interpolation
+        let localSegIdx = this.occupiedSegments.length - 1;
+        let segDist = this.segmentDist;
+        const reversePos = dist => {
+            let remDist = dist;
+            for (;;) {
+                const localSeg = this.occupiedSegments[localSegIdx];
+                const seg = network.segments[localSeg.segmentIdx];
+                const p = linspline.Point();
+                linspline.advancePoint(seg.tesSpline, p, segDist);
+                const dirSign = localSeg.toHighEnd ? -1 : 1;
+                const step = remDist * dirSign;
+                const d = linspline.reversePoint(seg.tesSpline, p, step);
+                remDist -= d;
+                segDist -= d * dirSign;
+                if (remDist < 0.0001) { break; }
+                if (localSegIdx <= 0) { break; }
+                localSegIdx -= 1;
+                segDist = 0.0;
+                const newLocalSeg = this.occupiedSegments[localSegIdx];
+                if (!newLocalSeg.toHighEnd) {
+                    const newSeg = network.segments[newLocalSeg.segmentIdx];
+                    segDist = linspline.computeLength(newSeg.tesSpline);
+                }
+            }
+        };
+        const currentPos = () => {
+            const localSeg = this.occupiedSegments[localSegIdx];
+            const seg = network.segments[localSeg.segmentIdx];
+            const p = linspline.Point();
+            linspline.advancePoint(seg.tesSpline, p, segDist);
+            return linspline.atPoint(seg.tesSpline, p);
+        };
+        let locoInstance = null;
+        const carInstances = [];
+        for (let carI = 0; carI <= this.carCount; carI += 1) {
+            const isLoco = carI === 0;
+            const frontPos = currentPos();
+            reversePos(Train.BOGEY_SPAN);
+            const backPos = currentPos();
+            reversePos(Train.CAR_BOGEY_SPACING);
+            const dir = frontPos.clone().subtract(backPos).normalize();
+            const right = Train.TRAIN_UP.clone().cross(dir).normalize();
+            const up = dir.clone().cross(right);
+            const center = frontPos.clone().lerp(backPos, 0.5);
+            const rotation = new Matrix4().set(
+                ...right, 0,
+                ...up, 0,
+                ...dir, 0,
+                0, 0, 0, 1
+            );
+            const position = new Matrix4().translate(center);
+            const instance = position.multiplyRight(rotation);
+            if (isLoco) { locoInstance = instance; }
+            else { carInstances.push(instance); }
+        }
+        const locoModel = Train.LOCO_MODELS[this.locoType];
+        renderer.renderModel(locoModel, [locoInstance]);
+        renderer.renderModel(Train.CARRIAGE_MODEL, carInstances);
     }
 
 }
@@ -394,6 +462,7 @@ export class TrackNetwork {
         this.signals = [];
         this.buildSwitchSignals(worldDetails.network);
         this.regionTexts = [];
+        this.trains = new Map();
     }
 
     static REGION_MAX_WORLD_CHUNK_LEN = 60;
@@ -502,6 +571,25 @@ export class TrackNetwork {
         }
     }
 
+    updateTrains(trains) {
+        const receivedTrainIds = new Set();
+        for (const entry of trains) {
+            const trainId = entry.key;
+            receivedTrainIds.add(trainId);
+            const trainState = entry.value;
+            const train = this.trains.get(trainId);
+            if (train === undefined) {
+                this.trains.set(trainId, new Train(trainState));
+            } else {
+                train.onNewState(trainState);
+            }
+        }
+        for (const trainId of this.trains.keys()) {
+            if (receivedTrainIds.has(trainId)) { continue; }
+            this.trains.delete(trainId);
+        }
+    }
+
     static RENDER_XMIN = -2;
     static RENDER_XMAX = +2;
     static RENDER_ZMIN = -1;
@@ -543,6 +631,9 @@ export class TrackNetwork {
                 h.geometry, null, [hlInst], null,
                 TrackNetwork.TRACK_HIGHLIGHT_SHADER
             );
+        }
+        for (const train of this.trains.values()) {
+            train.render(renderer, this);
         }
         this.signals.forEach(s => s.update(renderer));
         this.regionTexts.forEach(t => t.update(renderer));

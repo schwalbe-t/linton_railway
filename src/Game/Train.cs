@@ -36,19 +36,17 @@ public sealed class Train
 
     static int BaseLength(TrainLength length) => length switch
     {
-        TrainLength.Short => 3,
-        TrainLength.Medium => 6,
-        TrainLength.Long => 9,
+        TrainLength.Short => 2,
+        TrainLength.Medium => 4,
+        TrainLength.Long => 6,
         _ => 0
     };
 
-    const int MinTrainLenDiff = -2;
-    const int MaxTrainLenDiff = +2;
+    const int MinTrainLenDiff = -1;
+    const int MaxTrainLenDiff = +1;
 
     const LocomotiveType DefaultLocoType = LocomotiveType.Diesel;
     const TrainColor DefaultColor = TrainColor.Cyan;
-
-    const float CarSpacing = 5f;
 
     /// <summary>
     /// [units/s]
@@ -71,30 +69,10 @@ public sealed class Train
     /// </summary>
     const float Deceleration = 3f;
 
-
-    public class CarPosition(int localSegIdx, LinSpline.Point pos)
-    {
-        [JsonIgnore]
-        readonly Lock _lock = new();
-
-        [JsonIgnore]
-        int _localSegIdx = localSegIdx;
-        [JsonProperty("localSegIdx")]
-        public int LocalSegIdx
-        {
-            get { lock (_lock) { return _localSegIdx; } }
-            set { lock (_lock) { _localSegIdx = value; } }
-        }
-
-        [JsonIgnore]
-        LinSpline.Point _segmentPos = pos;
-        [JsonProperty("segmentPos")]
-        public LinSpline.Point SegmentPos
-        {
-            get { lock (_lock) { return _segmentPos; } }
-            set { lock (_lock) { _segmentPos = value; } }
-        }
-    }
+    /// <summary>
+    /// The maximum number of previously occupied segments to store.
+    /// </summary>
+    const int MaxOccupiedSegmentCount = 20;
 
 
     [JsonProperty("locoType")]
@@ -107,20 +85,15 @@ public sealed class Train
     [JsonIgnore]
     readonly Lock _lock = new();
 
-    /// <summary>
-    /// loco [0], then cars from front to back
-    /// </summary>
-    [JsonProperty("carPositions")]
-    public readonly ReadOnlyCollection<CarPosition> CarPositions;
-
-    /// <summary>
-    /// Distance of each carriage from the locomotive
-    /// </summary>
     [JsonIgnore]
-    readonly List<float> CarLocoDistances;
+    float _segmentDist;
+    [JsonProperty("segmentDist")]
+    public float SegmentDist
+    { get { lock (_lock) { return _segmentDist; } } }
 
     /// <summary>
-    /// from oldest segment idx to newest segment idx
+    /// from oldest segment idx [0] to newest segment idx (highest index)
+    /// locomotive always occupies the segment specified by the last element
     /// </summary>
     [JsonIgnore]
     readonly List<TrackConnection> _occupiedSegments = new();
@@ -148,19 +121,13 @@ public sealed class Train
             Color = TrainColors[rng.Next(TrainColors.Length)];
             CarCount += rng.Next(MinTrainLenDiff, MaxTrainLenDiff + 1);
         }
-        LinSpline.Point segPos = new();
+        _occupiedSegments.Add(segment);
+        _segmentDist = 0.0f;
         if (segment.ToHighEnd)
         {
             TrackSegment seg = network.Segments[segment.SegmentIdx];
-            seg.LSpline.AdvancePoint(ref segPos, float.PositiveInfinity);
+            _segmentDist = seg.LSpline.ComputeLength();
         }
-        CarPositions = Enumerable.Range(0, CarCount + 1)
-            .Select(_ => new CarPosition(0, segPos))
-            .ToList().AsReadOnly();
-        CarLocoDistances = Enumerable.Range(0, CarCount)
-            .Select(_ => 0f)
-            .ToList();
-        _occupiedSegments.Add(segment);
     }
 
     static TrackConnection? ChooseNextSegment(
@@ -173,7 +140,6 @@ public sealed class Train
         TrackSegment seg = network.Segments[segmentIdx];
         List<TrackConnection> nextConns = ascend
             ? seg.ConnectsHigh : seg.ConnectsLow;
-        Vector3 endPos = ascend ? seg.HighEnd : seg.LowEnd;
         if (nextConns.Count == 0)
         {
             reachedEnd = true;
@@ -183,6 +149,7 @@ public sealed class Train
         {
             return nextConns[0];
         }
+        Vector3 endPos = ascend ? seg.HighEnd : seg.LowEnd;
         int endTX = (int)Math.Round(endPos.X.UnitsToTiles());
         int endTZ = (int)Math.Round(endPos.Z.UnitsToTiles());
         RegionMap.Region reg = state.Regions.RegionOfTile(endTX, endTZ);
@@ -191,32 +158,28 @@ public sealed class Train
             return nextConns[randomBranchIdx % nextConns.Count];
         }
         TrackConnection endConn = new(segmentIdx, ascend);
-        ushort? selectedBranch = state.Switches.GetValueOrDefault(endConn);
-        if (selectedBranch is ushort branchIdx)
+        if (state.Switches.TryGetValue(endConn, out ushort branchIdx))
         {
             return nextConns[branchIdx];
         }
         return null;
     }
 
-    float NextStopPointDist(
-        CarPosition car, TrackNetwork network, GameState state)
+    static float NextStopPointDist(
+        TrackConnection segment, float segmentDist,
+        TrackNetwork network, GameState state)
     {
-        TrackConnection localSeg = _occupiedSegments[car.LocalSegIdx];
-        int segIdx = localSeg.SegmentIdx;
+        int segIdx = segment.SegmentIdx;
         TrackSegment seg = network.Segments[segIdx];
-        bool ascend = !localSeg.ToHighEnd;
-        LinSpline.Point p = car.SegmentPos;
+        bool ascend = !segment.ToHighEnd;
+        LinSpline.Point p = new();
+        seg.LSpline.AdvancePoint(ref p, segmentDist, out _);
         float dist = 0f;
         while (true)
         {
             float step = float.PositiveInfinity * (ascend ? 1 : -1);
-            float advanced = seg.LSpline.AdvancePoint(ref p, step);
-            if (advanced > 0.001)
-            {
-                dist += advanced;
-                continue;
-            }
+            dist += seg.LSpline.AdvancePoint(ref p, step, out bool segEnd);
+            if (!segEnd) { continue; }
             TrackConnection? oNext = ChooseNextSegment(
                 network, state, segIdx, ascend, 0, out bool atEnd
             );
@@ -228,7 +191,7 @@ public sealed class Train
             p = new LinSpline.Point();
             if (!ascend)
             {
-                seg.LSpline.AdvancePoint(ref p, float.PositiveInfinity);
+                seg.LSpline.AdvancePoint(ref p, float.PositiveInfinity, out _);
             }
         }
         return dist;
@@ -236,78 +199,47 @@ public sealed class Train
 
     void UpdateSpeed(TrackNetwork network, GameState state, float deltaTime)
     {
-        CarPosition loco = CarPositions.First();
         _speed += Acceleration * deltaTime;
         _speed = Math.Min(_speed, TopSpeed);
-        float stopDist = NextStopPointDist(loco, network, state);
+        TrackConnection cSeg = _occupiedSegments[^1];
+        float stopDist = NextStopPointDist(cSeg, _segmentDist, network, state);
         float stopTopSpeed = stopDist * Deceleration;
         _speed = Math.Min(_speed, stopTopSpeed);
-    }
-
-    void AdvanceCarPosition(
-        TrackNetwork network, GameState state, Random rng,
-        CarPosition car, float distance
-    )
-    {
-        float movedDist = distance;
-        while (!_atEnd)
-        {
-            TrackConnection localSeg = _occupiedSegments[car.LocalSegIdx];
-            TrackSegment seg = network.Segments[localSeg.SegmentIdx];
-            float step = movedDist * (localSeg.ToHighEnd ? -1 : 1);
-            LinSpline.Point p = car.SegmentPos;
-            movedDist -= seg.LSpline.AdvancePoint(ref p, step);
-            car.SegmentPos = p;
-            if (movedDist < 0.0001) { break; }
-            if (car.LocalSegIdx < _occupiedSegments.Count - 1)
-            {
-                car.LocalSegIdx += 1;
-                continue;
-            }
-            TrackConnection? oNext = ChooseNextSegment(
-                network, state, localSeg.SegmentIdx, !localSeg.ToHighEnd,
-                rng.Next(), out _atEnd
-            );
-            if (oNext is not TrackConnection next) { break; }
-            int nextLocalSegIdx = _occupiedSegments.Count;
-            _occupiedSegments.Add(next);
-            car.LocalSegIdx = nextLocalSegIdx;
-            LinSpline.Point np = new();
-            if (next.ToHighEnd)
-            {
-                TrackSegment nextSeg = network.Segments[next.SegmentIdx];
-                nextSeg.LSpline.AdvancePoint(ref np, float.PositiveInfinity);
-            }
-            car.SegmentPos = np;
-        }
     }
 
     void UpdatePosition(
         TrackNetwork network, GameState state, Random rng, float deltaTime
     )
     {
-        float movedDist = _speed * deltaTime;
-        float locoMovedDist = 
-        for (int carI = 0; carI < CarPositions.Count; carI += 1)
+        float distLeft = _speed * deltaTime;
+        while (!_atEnd)
         {
-            CarPosition carPos = CarPositions[carI];
-            float maxDist = movedDist;
-            if (carI >= 1)
+            TrackConnection curr = _occupiedSegments[^1];
+            TrackSegment seg = network.Segments[curr.SegmentIdx];
+            LinSpline.Point p = new();
+            seg.LSpline.AdvancePoint(ref p, _segmentDist, out _);
+            float step = distLeft * (curr.ToHighEnd ? -1 : 1);
+            float adv = seg.LSpline.AdvancePoint(ref p, step, out bool segEnd);
+            distLeft -= adv;
+            _segmentDist += adv;
+            if (!segEnd || distLeft < 0.0001) { break; }
+            TrackConnection? oNext = ChooseNextSegment(
+                network, state, curr.SegmentIdx, !curr.ToHighEnd,
+                rng.Next(), out _atEnd
+            );
+            if (oNext is not TrackConnection next) { break; }
+            _occupiedSegments.Add(next);
+            _segmentDist = 0f;
+            if (next.ToHighEnd)
             {
-                float carLocoDist = CarLocoDistances[carI - 1];
-
+                TrackSegment nSeg = network.Segments[next.SegmentIdx];
+                _segmentDist = nSeg.LSpline.ComputeLength();
             }
-            AdvanceCarPosition(network, state, rng, carPos, movedDist);
         }
-        CarPosition last = CarPositions.Last();
-        if (last.LocalSegIdx > 0)
+        int rmOccSegCount = _occupiedSegments.Count - MaxOccupiedSegmentCount;
+        if (rmOccSegCount > 0)
         {
-            int rmCnt = last.LocalSegIdx;
-            foreach (CarPosition carPos in CarPositions)
-            {
-                carPos.LocalSegIdx -= rmCnt;
-            }
-            _occupiedSegments.RemoveRange(0, rmCnt);
+            _occupiedSegments.RemoveRange(0, rmOccSegCount);
         }
     }
 

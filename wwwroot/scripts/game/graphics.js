@@ -5,6 +5,8 @@ import {
 
 let renderScale = 1.0;
 let canvas = null;
+let canvasDispWidth = 0;
+let canvasDispHeight = 0;
 let gl = null;
 let initHandlers = [];
 
@@ -32,8 +34,10 @@ export function setRenderScale(scale = 1.0) {
 }
 
 export function updateGraphics() {
-    const width = canvas.clientWidth * renderScale;
-    const height = canvas.clientHeight * renderScale;
+    canvasDispWidth = canvas.clientWidth;
+    canvasDispHeight = canvas.clientHeight;
+    const width = canvasDispWidth * renderScale;
+    const height = canvasDispHeight * renderScale;
     if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
@@ -634,6 +638,9 @@ class DefaultFramebuffer extends AbstractFramebuffer {
 
     get width() { return canvas.width; }
     get height() { return canvas.height; }
+
+    get displayWidth() { return canvasDispWidth; }
+    get displayHeight() { return canvasDispHeight; }
 
 }
 

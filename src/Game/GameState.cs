@@ -20,19 +20,34 @@ public sealed class GameState(int sizeT, TrackNetwork trackNetwork)
     public readonly ConcurrentDictionary<Guid, Train> Trains = new();
 
     [JsonIgnore]
-    Lock _lock = new();
-
-    static readonly TimeSpan TrainSummonInterval
-        = TimeSpan.FromMilliseconds(500);
+    readonly Lock _lock = new();
 
     /// <summary>
-    /// The maximum number of trains in the network for every chunk the network
-    /// occupies.
+    /// The maximum number of trains in the network for every chunk occupied
+    /// by the network that is owned by a player.
     /// </summary>
-    const int TrainCountLimit = 5;
+    const int TrainCountLimit = 4;
 
     [JsonIgnore]
-    DateTime _nextTrainSummon = DateTime.MinValue;
+    int _ownedRegionCount = 0;
+    /// <summary>
+    /// The number of regions owned by any player on the map.
+    /// Use 'IncrementOwnedRegionCount' to increase when allocating players to
+    /// regions.
+    /// </summary>
+    [JsonIgnore]
+    public int OwnedRegionCount
+    {
+        get { lock (_lock) { return _ownedRegionCount; } }
+    }
+
+    /// <summary>
+    /// Increases the owned region count by 1.
+    /// </summary>
+    public void IncrementOwnedRegionCount()
+    {
+        lock (_lock) { _ownedRegionCount += 1; }
+    }
 
     /// <summary>
     /// Represents an update to a "switch" on the network.
@@ -93,27 +108,25 @@ public sealed class GameState(int sizeT, TrackNetwork trackNetwork)
         foreach (var (trainId, train) in Trains)
         {
             train.Update(network, this, rng, deltaTime);
-            if (train.AtEnd) { Trains.Remove(trainId, out _); }
+            if (train.AtEnd) {
+                Trains.Remove(trainId, out _);
+            }
         }
     }
 
     public void SummonTrains(
-        int sizeC, TrackNetwork network, RoomSettings settings, Random rng
+        TrackNetwork network, RoomSettings settings, Random rng
     )
     {
-        DateTime now = DateTime.UtcNow;
-        lock (_lock)
-        {
-            if (now < _nextTrainSummon) { return; }
-            _nextTrainSummon = now + TrainSummonInterval;
-        }
-        int maxNumTrains = sizeC * sizeC * TrainCountLimit;
-        if (Trains.Count >= maxNumTrains) { return; }
+        int targetTrainCount = OwnedRegionCount * TrainCountLimit;
         int entranceCount = network.Entrances.Count;
-        TrackConnection start = network.Entrances[rng.Next(entranceCount)];
-        Train train = new(network, start, settings, rng);
-        Guid trainId = Guid.NewGuid();
-        Trains[trainId] = train;
+        while (Trains.Count < targetTrainCount)
+        {
+            TrackConnection start = network.Entrances[rng.Next(entranceCount)];
+            Train train = new(network, start, settings, rng);
+            Guid trainId = Guid.NewGuid();
+            Trains[trainId] = train;
+        }
     }
 
 }

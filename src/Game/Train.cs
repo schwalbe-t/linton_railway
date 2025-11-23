@@ -46,7 +46,7 @@ public sealed class Train
     const int MaxTrainLenDiff = +1;
 
     const LocomotiveType DefaultLocoType = LocomotiveType.Diesel;
-    const TrainColor DefaultColor = TrainColor.Cyan;
+    const TrainColor DefaultColor = TrainColor.Green;
 
     /// <summary>
     /// [units/s]
@@ -68,6 +68,12 @@ public sealed class Train
     /// <code>5 units * 3 (units/s)/units = 15 units/s</code>
     /// </summary>
     const float Deceleration = 3f;
+
+    /// <summary>
+    /// [units/s]
+    /// The fixed speed of trains in regions not owned by any player.
+    /// </summary>
+    const float UnownedRegionSpeed = 1000f;
 
     /// <summary>
     /// The maximum number of previously occupied segments to store.
@@ -108,6 +114,9 @@ public sealed class Train
     bool _atEnd = false;
     [JsonIgnore]
     public bool AtEnd { get { lock (_lock) { return _atEnd; } } }
+
+    public TrackConnection CurrentSegment
+    { get { lock (_lock) { return _occupiedSegments[^1]; } } }
 
     public Train(
         TrackNetwork network, TrackConnection segment,
@@ -165,69 +174,173 @@ public sealed class Train
         return null;
     }
 
+    const float StoppingDistStepSize = 10000f; // large value
+    const float MaxStoppingDist = 50f; // don't keep looking after this value
+    const float TrainDistPadding = 10f; // min distance between trains (per car)
+    const float BranchExitPadding = 15f;
+
     static float NextStopPointDist(
-        TrackConnection segment, float segmentDist,
-        TrackNetwork network, GameState state)
+        Train self, TrackConnection segment, float segmentDist,
+        TrackNetwork network, GameState state, Random rng
+    )
     {
         int segIdx = segment.SegmentIdx;
         TrackSegment seg = network.Segments[segIdx];
         bool ascend = !segment.ToHighEnd;
         LinSpline.Point p = new();
         seg.LSpline.AdvancePoint(ref p, segmentDist, out _);
-        float dist = 0f;
-        while (true)
+        float segDist = segmentDist;
+        float stopDist = 0f;
+        float ClosestTrainDist()
         {
-            float step = float.PositiveInfinity * (ascend ? 1 : -1);
-            dist += seg.LSpline.AdvancePoint(ref p, step, out bool segEnd);
+            float closestTrainDist = float.PositiveInfinity;
+            foreach (Train train in state.Trains.Values)
+            {
+                if (train == self) { continue; }
+                TrackConnection trainSeg = train.CurrentSegment;
+                if (trainSeg.SegmentIdx != segIdx) { continue; }
+                bool isHigher = train.SegmentDist > segDist;
+                bool isAfter = ascend ? isHigher : !isHigher;
+                if (!isAfter) { continue; }
+                float trainDist = Math.Abs(train.SegmentDist - segDist)
+                    - (TrainDistPadding * train.CarCount);
+                closestTrainDist = Math.Min(closestTrainDist, trainDist);
+            }
+            return closestTrainDist;
+        }
+        bool AllowedBranchExit(TrackConnection next)
+        {
+            TrackSegment nextSeg = network.Segments[next.SegmentIdx];
+            List<TrackConnection> branches = next.ToHighEnd
+                ? nextSeg.ConnectsHigh : nextSeg.ConnectsLow;
+            if (branches.Count <= 1)
+            {
+                return true;
+            }
+            if (state.Switches.TryGetValue(next, out ushort branchIdx))
+            {
+                return branches[branchIdx].SegmentIdx == segIdx;
+            }
+            Vector3 endPos = next.ToHighEnd
+                ? nextSeg.HighEnd : nextSeg.LowEnd;
+            int endTX = (int)Math.Round(endPos.X.UnitsToTiles());
+            int endTZ = (int)Math.Round(endPos.Z.UnitsToTiles());
+            RegionMap.Region reg = state.Regions.RegionOfTile(endTX, endTZ);
+            return reg.Owner == null;
+        }
+        while (stopDist < MaxStoppingDist)
+        {
+            float closestTrainDist = ClosestTrainDist();
+            if (closestTrainDist != float.PositiveInfinity)
+            {
+                stopDist += closestTrainDist;
+                break;
+            }
+            float step = StoppingDistStepSize * (ascend ? 1 : -1);
+            float d = seg.LSpline.AdvancePoint(ref p, step, out bool segEnd);
+            stopDist += d;
+            segDist += d;
             if (!segEnd) { continue; }
+            List<TrackConnection> nextConns = ascend
+                ? seg.ConnectsHigh : seg.ConnectsLow;
+            if (nextConns.Count >= 1 && !nextConns.All(AllowedBranchExit))
+            {
+                stopDist -= BranchExitPadding;
+                break;
+            }
             TrackConnection? oNext = ChooseNextSegment(
-                network, state, segIdx, ascend, 0, out bool atEnd
+                network, state, segIdx, ascend, rng.Next(), out bool atEnd
             );
             if (atEnd) { return float.PositiveInfinity; }
             if (oNext is not TrackConnection next) { break; }
             segIdx = next.SegmentIdx;
             seg = network.Segments[segIdx];
             ascend = !next.ToHighEnd;
+            segDist = 0f;
             p = new LinSpline.Point();
             if (!ascend)
             {
-                seg.LSpline.AdvancePoint(ref p, float.PositiveInfinity, out _);
+                float segLen = seg.LSpline.ComputeLength();
+                seg.LSpline.AdvancePoint(ref p, segLen, out _);
+                segDist = segLen;
             }
         }
-        return dist;
+        return stopDist;
     }
 
-    void UpdateSpeed(TrackNetwork network, GameState state, float deltaTime)
+    bool CurrentSegmentOwned(TrackNetwork network, GameState state)
     {
+        TrackConnection curr = _occupiedSegments[^1];
+        TrackSegment seg = network.Segments[curr.SegmentIdx];
+        Vector3 lowT = seg.LowEnd.UnitsToTiles();
+        int lowTX = (int)Math.Round(lowT.X);
+        int lowTZ = (int)Math.Round(lowT.Z);
+        RegionMap.Region lowReg = state.Regions.RegionOfTile(lowTX, lowTZ);
+        Vector3 highT = seg.HighEnd.UnitsToTiles();
+        int highTX = (int)Math.Round(highT.X);
+        int highTZ = (int)Math.Round(highT.Z);
+        RegionMap.Region highReg = state.Regions.RegionOfTile(highTX, highTZ);
+        return lowReg.Owner != null || highReg.Owner != null;
+    }
+
+    // after less than this distance force speed = 0
+    const float StopPointCutoff = 0.1f;
+
+    void UpdateSpeed(
+        TrackNetwork network, GameState state, float deltaTime, Random rng
+    )
+    {
+        if (!CurrentSegmentOwned(network, state))
+        {
+            _speed = UnownedRegionSpeed;
+            return;
+        }
         _speed += Acceleration * deltaTime;
         _speed = Math.Min(_speed, TopSpeed);
         TrackConnection cSeg = _occupiedSegments[^1];
-        float stopDist = NextStopPointDist(cSeg, _segmentDist, network, state);
+        float stopDist = NextStopPointDist(
+            this, cSeg, _segmentDist, network, state, rng
+        );
         float stopTopSpeed = stopDist * Deceleration;
         _speed = Math.Min(_speed, stopTopSpeed);
+        if (stopDist < StopPointCutoff) { _speed = 0f; }
     }
 
-    void UpdatePosition(
-        TrackNetwork network, GameState state, Random rng, float deltaTime
+    void MoveDistance(
+        TrackNetwork network, GameState state, Random rng, float distance
     )
     {
-        float distLeft = _speed * deltaTime;
+        float distLeft = distance;
         while (!_atEnd)
         {
             TrackConnection curr = _occupiedSegments[^1];
             TrackSegment seg = network.Segments[curr.SegmentIdx];
             LinSpline.Point p = new();
             seg.LSpline.AdvancePoint(ref p, _segmentDist, out _);
-            float step = distLeft * (curr.ToHighEnd ? -1 : 1);
+            float dirSign = curr.ToHighEnd ? -1 : 1;
+            float step = distLeft * dirSign;
             float adv = seg.LSpline.AdvancePoint(ref p, step, out bool segEnd);
             distLeft -= adv;
-            _segmentDist += adv;
-            if (!segEnd || distLeft < 0.0001) { break; }
+            _segmentDist += adv * dirSign;
+            if (!segEnd || distLeft < 0.001) { break; }
             TrackConnection? oNext = ChooseNextSegment(
                 network, state, curr.SegmentIdx, !curr.ToHighEnd,
                 rng.Next(), out _atEnd
             );
             if (oNext is not TrackConnection next) { break; }
+            foreach (var (swConn, branchIdx) in state.Switches)
+            {
+                TrackSegment swSeg = network.Segments[swConn.SegmentIdx];
+                List<TrackConnection> branches = swConn.ToHighEnd
+                    ? swSeg.ConnectsHigh : swSeg.ConnectsLow;
+                TrackConnection branch = branches[branchIdx];
+                bool isExit = branch.SegmentIdx == curr.SegmentIdx
+                    && branch.ToHighEnd != curr.ToHighEnd;
+                bool isEntry = branch.SegmentIdx == next.SegmentIdx
+                    && branch.ToHighEnd == next.ToHighEnd;
+                bool unset = isExit || isEntry;
+                if (unset) { state.Switches.Remove(swConn, out _); }
+            }
             _occupiedSegments.Add(next);
             _segmentDist = 0f;
             if (next.ToHighEnd)
@@ -243,14 +356,23 @@ public sealed class Train
         }
     }
 
+    const float MovementTimeStepSize = 0.003f;
+
     public void Update(
         TrackNetwork network, GameState state, Random rng, float deltaTime
     )
     {
         lock (_lock)
         {
-            UpdateSpeed(network, state, deltaTime);
-            UpdatePosition(network, state, rng, deltaTime);
+            float remTime = deltaTime;
+            while (remTime > 0)
+            {
+                float timeStep = Math.Min(remTime, MovementTimeStepSize);
+                UpdateSpeed(network, state, timeStep, rng);
+                float dist = _speed * timeStep;
+                MoveDistance(network, state, rng, dist);
+                remTime -= MovementTimeStepSize;
+            }
         }
     }
 

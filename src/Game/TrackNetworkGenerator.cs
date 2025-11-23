@@ -669,8 +669,10 @@ public sealed class TrackNetworkGenerator
 
     void TryRegisterEntrance(Vector3 p)
     {
-        bool isOnEdge = p.X == 0 || p.Z == 0
-            || p.X == Terrain.SizeU || p.Z == Terrain.SizeU;
+        int x = (int)Math.Round(p.X);
+        int z = (int)Math.Round(p.Z);
+        bool isOnEdge = x <= 0 || z <= 0
+            || x >= Terrain.SizeU || z >= Terrain.SizeU;
         if (!isOnEdge) { return; }
         _entrances.Add(p);
     }
@@ -716,7 +718,9 @@ public sealed class TrackNetworkGenerator
         Vector3 rightStart = DoubleRight(s.Start, startDir);
         o.Add(new QuadSpline(Start: rightStart, Segments: right));
         oIsRight.Add(true);
+        Vector3 leftEnd = left.Last().To;
         TryRegisterEntrance(rightStart);
+        TryRegisterEntrance(leftEnd);
     }
 
     public TrackNetwork Build()

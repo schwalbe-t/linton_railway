@@ -71,6 +71,7 @@ gameloop.onFrame(deltaTime => {
         camera.configureRenderer(renderer);
         renderer.update(defaultFramebuffer, network, deltaTime);
         WorldUi.VIEW_PROJECTION = new Matrix4(renderer.viewProj);
+        network.update(deltaTime);
         if (gprofiles.current().shadowMapping) {
             renderer.prepareRenderShadows();
             terrain.render(renderer);

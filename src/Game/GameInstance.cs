@@ -84,7 +84,9 @@ public class GameInstance
                 || cz < 0 || cz >= Terrain.SizeC;
             if (oob) { throw new Exception("Failed to find region"); }
             RegionMap.Region region = State.Regions.RegionOfChunk(cx, cz);
-            return region.TryTake(p);
+            bool taken = region.TryTake(p);
+            if (taken) { State.IncrementOwnedRegionCount(); }
+            return taken;
         }
         int centerX = Terrain.SizeC / 2;
         int centerZ = Terrain.SizeC / 2;
@@ -123,7 +125,7 @@ public class GameInstance
             }
             _lastFrameTime = now;
             State.UpdateTrains(Network, _rng, deltaTime);
-            State.SummonTrains(Terrain.SizeC, Network, Settings, _rng);
+            State.SummonTrains(Network, Settings, _rng);
         }
     }
 

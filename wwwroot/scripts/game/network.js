@@ -22,6 +22,7 @@ export class Train {
 
     static LOCO_MODELS = null;
     static CARRIAGE_MODEL = null;
+    static TRAIN_GEOMETRY_SHADER = null;
     static async loadResources() {
         const locoDieselModelReq = Model.loadMeshes(Renderer.OBJ_LAYOUT, [
             {
@@ -41,11 +42,15 @@ export class Train {
                 obj: "/res/models/carriage.obj"
             }
         ]);
+        const trainGeometryShaderReq = Shader.loadGlsl(
+            "/res/shaders/geometry.vert.glsl", "/res/shaders/train.frag.glsl"
+        )
         Train.LOCO_MODELS = Object.freeze({
             "diesel": await locoDieselModelReq,
             "steam": await locoSteamModelReq
         });
         Train.CARRIAGE_MODEL = await carriageModelReq;
+        Train.TRAIN_GEOMETRY_SHADER = await trainGeometryShaderReq;
     }
 
 
@@ -53,14 +58,123 @@ export class Train {
         this.color = trainState.color;
         this.locoType = trainState.locoType;
         this.carCount = trainState.carCount;
-        this.occupiedSegments = [...trainState.occupiedSegments];
-        this.segmentDist = trainState.segmentDist;
+        this.occSegments = [];
+        this.onNewState(trainState);
+        this.chunkX = 0;
+        this.chunKZ = 0;
     }
 
-    onNewState(trainState) {
-        // TODO! interpolation
-        this.occupiedSegments = [...trainState.occupiedSegments];
-        this.segmentDist = trainState.segmentDist;
+    static MAX_OCC_COUNT = 50;
+    // [milliseconds]
+    // should exceed the expected room update interval
+    // the longer, the smoother (but the more delay there is)
+    static INTERPOLATION_TIME = 500 / 1000;
+
+    findInterpolationDist(nextState, network) {
+        const startLsi = this.currentLocalSegIdx;
+        const endLsi = this.occSegments.length - 1;
+        if (startLsi === endLsi) {
+            return Math.abs(this.currentSegDist - nextState.segmentDist);
+        }
+        const localSegEndDist = (lsi, dirEnd) => {
+            const conn = this.occSegments[lsi];
+            const seg = network.segments[conn.segmentIdx];
+            // toHighEnd = true  (descending) + dirEnd = true  => 0.0
+            // toHighEnd = true  (descending) + dirEnd = false => len
+            // toHighEnd = false (ascending)  + dirEnd = true  => len
+            // toHighEnd = false (ascending)  + dirEnd = false => 0.0
+            return conn.toHighEnd === dirEnd ? 0.0
+                : linspline.computeLength(seg.tesSpline);
+        };
+        const startEndDist = localSegEndDist(startLsi, true);
+        let totalDist = Math.abs(this.currentSegDist - startEndDist);
+        for (let lsi = startLsi + 1; lsi < endLsi; lsi += 1) {
+            const conn = this.occSegments[lsi];
+            const seg = network.segments[conn.segmentIdx];
+            totalDist += linspline.computeLength(seg.tesSpline);
+        }
+        const endEndDist = localSegEndDist(endLsi, false);
+        return totalDist + Math.abs(nextState.segmentDist - endEndDist);
+    }
+
+    onNewState(trainState, network = null) {
+        const olc = this.occSegments.at(-1)
+            || { segmentIdx: -1, toHighEnd: false };
+        const oldLastIdx = trainState.occupiedSegments
+            .findIndex(o => o.segmentIdx === olc.segmentIdx);
+        const snap = () => {
+            this.occSegments = [...trainState.occupiedSegments];
+            this.currentLocalSegIdx = this.occSegments.length - 1;
+            this.currentSegDist = trainState.segmentDist;
+            this.targetSegDist = this.currentSegDist;
+            this.remLerpDist = 0.0;
+            this.remLerpTime = 0.0;
+        };
+        if (oldLastIdx === -1) { return snap(); }
+        const added = trainState.occupiedSegments.slice(oldLastIdx + 1);
+        this.occSegments.push(...added);
+        const remOccCount = this.occSegments.length - Train.MAX_OCC_COUNT;
+        if (remOccCount > 0) {
+            this.occSegments = this.occSegments.slice(remOccCount);
+            this.currentLocalSegIdx -= remOccCount;
+            if (this.currentLocalSegIdx < 0) { return snap(); }
+        }
+        this.remLerpDist = this.findInterpolationDist(trainState, network);
+        this.targetSegDist = trainState.segmentDist;
+        this.remLerpTime = Train.INTERPOLATION_TIME;
+    }
+
+    interpolateState(network, deltaTime) {
+        // snap to end
+        if (this.remLerpTime <= 0.0001) {
+            this.currentLocalSegIdx = this.occSegments.length - 1;
+            this.currentSegDist = this.targetSegDist;
+            this.remLerpDist = 0.0;
+            this.remLerpTime = 0.0;
+            return;
+        }
+        // compute how much distance to advance this frame
+        const lerpDist = this.remLerpDist * (deltaTime / this.remLerpTime);
+        this.remLerpDist -= lerpDist;
+        this.remLerpDist = Math.max(this.remLerpDist, 0.0);
+        this.remLerpTime -= deltaTime;
+        this.remLerpTime = Math.max(this.remLerpTime, 0.0);
+        // advance by computed distance
+        let remDist = lerpDist;
+        for (;;) {
+            const localSeg = this.occSegments[this.currentLocalSegIdx];
+            const seg = network.segments[localSeg.segmentIdx];
+            const p = linspline.Point();
+            linspline.advancePoint(seg.tesSpline, p, this.currentSegDist);
+            const dirSign = localSeg.toHighEnd ? -1 : 1;
+            const step = remDist * dirSign;
+            const d = linspline.advancePoint(seg.tesSpline, p, step);
+            this.currentSegDist += d * dirSign;
+            if (d >= remDist - 0.0001) { break; }
+            remDist -= d;
+            const isLast = this.currentLocalSegIdx
+                >= this.occSegments.length - 1;
+            if (isLast) { break; }
+            this.currentLocalSegIdx += 1;
+            this.currentSegDist = 0.0;
+            const newLocalSeg = this.occSegments[this.currentLocalSegIdx];
+            if (newLocalSeg.toHighEnd) {
+                const newSeg = network.segments[newLocalSeg.segmentIdx];
+                const newSegLen = linspline.computeLength(newSeg.tesSpline);
+                this.currentSegDist = newSegLen;
+            }
+        }
+    }
+
+    update(network, deltaTime) {
+        this.interpolateState(network, deltaTime);
+        const conn = this.occSegments[this.currentLocalSegIdx];
+        const seg = network.segments[conn.segmentIdx];
+        const p = linspline.Point();
+        linspline.advancePoint(seg.tesSpline, p, this.currentSegDist);
+        const pos = linspline.atPoint(seg.tesSpline, p);
+        this.chunkX = Math.round(units.toChunks(pos.x));
+        this.chunkZ = Math.round(units.toChunks(pos.z));
     }
 
     static BOGEY_SPAN = 3.0;
@@ -70,13 +184,12 @@ export class Train {
     static TRAIN_UP = new Vector3(0, 1, 0);
 
     render(renderer, network) {
-        // TODO! interpolation
-        let localSegIdx = this.occupiedSegments.length - 1;
-        let segDist = this.segmentDist;
+        let localSegIdx = this.currentLocalSegIdx;
+        let segDist = this.currentSegDist;
         const reversePos = dist => {
             let remDist = dist;
             for (;;) {
-                const localSeg = this.occupiedSegments[localSegIdx];
+                const localSeg = this.occSegments[localSegIdx];
                 const seg = network.segments[localSeg.segmentIdx];
                 const p = linspline.Point();
                 linspline.advancePoint(seg.tesSpline, p, segDist);
@@ -89,7 +202,7 @@ export class Train {
                 if (localSegIdx <= 0) { break; }
                 localSegIdx -= 1;
                 segDist = 0.0;
-                const newLocalSeg = this.occupiedSegments[localSegIdx];
+                const newLocalSeg = this.occSegments[localSegIdx];
                 if (!newLocalSeg.toHighEnd) {
                     const newSeg = network.segments[newLocalSeg.segmentIdx];
                     segDist = linspline.computeLength(newSeg.tesSpline);
@@ -97,7 +210,7 @@ export class Train {
             }
         };
         const currentPos = () => {
-            const localSeg = this.occupiedSegments[localSegIdx];
+            const localSeg = this.occSegments[localSegIdx];
             const seg = network.segments[localSeg.segmentIdx];
             const p = linspline.Point();
             linspline.advancePoint(seg.tesSpline, p, segDist);
@@ -127,8 +240,10 @@ export class Train {
             else { carInstances.push(instance); }
         }
         const locoModel = Train.LOCO_MODELS[this.locoType];
-        renderer.renderModel(locoModel, [locoInstance]);
-        renderer.renderModel(Train.CARRIAGE_MODEL, carInstances);
+        const s = Train.TRAIN_GEOMETRY_SHADER;
+        s.setUniform("uTrainColor", Train.TRAIN_COLORS[this.color]);
+        renderer.renderModel(locoModel, [locoInstance], null, s);
+        renderer.renderModel(Train.CARRIAGE_MODEL, carInstances, null, s);
     }
 
 }
@@ -581,12 +696,18 @@ export class TrackNetwork {
             if (train === undefined) {
                 this.trains.set(trainId, new Train(trainState));
             } else {
-                train.onNewState(trainState);
+                train.onNewState(trainState, this);
             }
         }
         for (const trainId of this.trains.keys()) {
             if (receivedTrainIds.has(trainId)) { continue; }
             this.trains.delete(trainId);
+        }
+    }
+
+    update(deltaTime) {
+        for (const train of this.trains.values()) {
+            train.update(this, deltaTime);
         }
     }
 
@@ -597,6 +718,7 @@ export class TrackNetwork {
 
     render(renderer) {
         renderer.setGeometryUniforms(TrackNetwork.TRACK_HIGHLIGHT_SHADER);
+        renderer.setGeometryUniforms(Train.TRAIN_GEOMETRY_SHADER);
         const segmentInstance = [ new Matrix4() ];
         const camChunkX = units.toChunks(renderer.camera.center.x);
         const camChunkZ = units.toChunks(renderer.camera.center.z);
@@ -604,9 +726,12 @@ export class TrackNetwork {
         const cMinChunkZ = Math.floor(camChunkZ) + TrackNetwork.RENDER_ZMIN;
         const cMaxChunkX = Math.ceil(camChunkX) + TrackNetwork.RENDER_XMAX;
         const cMaxChunkZ = Math.ceil(camChunkZ) + TrackNetwork.RENDER_ZMAX;
-        const isOutOfBounds = (minChunkX, minChunkZ, maxChunkX, maxChunkZ) =>
-            maxChunkX < cMinChunkX || maxChunkZ < cMinChunkZ ||
-            minChunkX >= cMaxChunkX || minChunkZ >= cMaxChunkZ;
+        const isOutOfBounds = (minChunkX, minChunkZ, maxChunkX, maxChunkZ) => {
+            if (maxChunkX === undefined) { maxChunkX = minChunkX; }
+            if (maxChunkZ === undefined) { maxChunkZ = minChunkZ; }
+            return maxChunkX < cMinChunkX || maxChunkZ < cMinChunkZ ||
+                minChunkX >= cMaxChunkX || minChunkZ >= cMaxChunkZ;
+        };
         for (const s of this.segments) {
             if (isOutOfBounds(s.minCX, s.minCZ, s.maxCX, s.maxCZ)) {
                 continue;
@@ -616,24 +741,21 @@ export class TrackNetwork {
             );
         }
         for (const s of this.stations) {
-            if (isOutOfBounds(s.chunkX, s.chunkZ, s.chunkX, s.chunkZ)) {
-                continue; 
-            }
+            if (isOutOfBounds(s.chunkX, s.chunkZ)) { continue; }
             renderer.renderModel(TrackNetwork.PLATFORM_MODEL, s.platforms);
             renderer.renderModel(TrackNetwork.STATION_MODEL, s.buildings);
         }
         const hlInst = new Matrix4();
         for (const h of this.visibleSwitchHighlights) {
-            if (isOutOfBounds(h.chunkX, h.chunkZ, h.chunkX, h.chunkZ)) {
-                continue; 
-            }
+            if (isOutOfBounds(h.chunkX, h.chunkZ)) { continue; }
             renderer.renderGeometry(
                 h.geometry, null, [hlInst], null,
                 TrackNetwork.TRACK_HIGHLIGHT_SHADER
             );
         }
-        for (const train of this.trains.values()) {
-            train.render(renderer, this);
+        for (const t of this.trains.values()) {
+            if (isOutOfBounds(t.chunkX, t.chunkZ)) { continue; }
+            t.render(renderer, this);
         }
         this.signals.forEach(s => s.update(renderer));
         this.regionTexts.forEach(t => t.update(renderer));

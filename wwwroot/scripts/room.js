@@ -319,17 +319,9 @@ function onSocketEvent(event) {
             }
             break;
         }
-        case "world_info": {
-            onReceiveWorld(event);
-            break;
-        }
-        case "game_update": {
-            onReceiveGameState(event.state);
-            break;
-        }
-        case "point_counts": {
-            onPointUpdate(event);
-            break;
-        }
+        case "world_info": onReceiveWorld(event); break;
+        case "game_update": onReceiveGameState(event.state); break;
+        case "point_counts": onPointUpdate(event); break;
+        case "game_winners": onWinnersAnnounced(event.winners); break;
     }
 }

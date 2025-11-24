@@ -39,6 +39,7 @@ function init() {
 }
 
 function onReceiveWorld(world) {
+    document.getElementById("game-winner-page").style.display = "none";
     onGraphicsInit(() => {
         if (terrain !== null) {
             terrain.delete(); 
@@ -82,6 +83,13 @@ function onPointUpdate(event) {
     addPoint();
 }
 window.onPointUpdate = onPointUpdate;
+
+function onWinnersAnnounced(winners) {
+    const page = document.getElementById("game-winner-page");
+    page.style.display = "block";
+    page.innerHTML = winners.map(w => w.name).join("<br>");
+}
+window.onWinnersAnnounced = onWinnersAnnounced;
 
 gameloop.onFrame(deltaTime => {
     if (terrain !== null) {

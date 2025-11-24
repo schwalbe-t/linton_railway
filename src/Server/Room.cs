@@ -127,6 +127,12 @@ public class Room(Guid id, RoomSettings settings)
                     ClientNumPoints: p.NumPoints
                 ));
             }
+            var dispWinners = playing.Game.ShouldStartDisplayWinners();
+            if (dispWinners is not null)
+            {
+                playing.Game.ConfirmWinnerDisplay();
+                BroadcastEvent(new OutEvent.GameWinners(dispWinners));
+            }
         }
     }
 

@@ -2,6 +2,7 @@
 using Linton.Game;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using System.Collections.Immutable;
 using System.Runtime.Serialization;
 
 namespace Linton.Server.Sockets;
@@ -126,8 +127,7 @@ public abstract record OutEvent
             [property: JsonProperty("id")] Guid Id,
             [property: JsonProperty("name")] string Name,
             [property: JsonProperty("isReady")] bool IsReady
-        )
-        { }
+        );
     }
 
     /// <summary>
@@ -194,6 +194,29 @@ public abstract record OutEvent
     ) : OutEvent
     {
         public override string TypeString => "point_counts";
+    }
+
+    /// <summary>
+    /// Used to announce the winners of the game to all clients.
+    /// People at lower indices have a higher number of points
+    /// (and a higher placement).
+    /// </summary>
+    /// <param name="Winners">the winners in descending order</param>
+    public sealed record GameWinners(
+        [property: JsonProperty("winners")] ImmutableList<GameWinners.WinnerInfo> Winners
+    ) : OutEvent
+    {
+        public override string TypeString => "game_winners";
+
+        /// <summary>
+        /// Info about each winner in the game winner placement.
+        /// </summary>
+        /// <param name="Name">the name of the player</param>
+        /// <param name="NumPoints">the number of points they got</param>
+        public sealed record WinnerInfo(
+            [property: JsonProperty("name")] string Name,
+            [property: JsonProperty("numPoints")] int NumPoints
+        );
     }
 
 }

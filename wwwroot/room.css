@@ -234,3 +234,13 @@
     font-size: 3rem;
     font-family: "Jetbrains Mono";
 }
+
+#game-winner-page {
+    z-index: 99999999;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100vw;
+    height: 100vh;
+    background: var(--bg-back);
+}

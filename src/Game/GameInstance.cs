@@ -1,5 +1,6 @@
 
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using Linton.Server;
 using Linton.Server.Sockets;
 using Newtonsoft.Json;
@@ -12,6 +13,12 @@ namespace Linton.Game;
 /// </summary>
 public class GameInstance
 {
+
+    static readonly TimeSpan SubroundLength = TimeSpan.FromSeconds(10);
+    // needs to match client side constant
+    static readonly TimeSpan WinnerAnnounceLength = TimeSpan.FromSeconds(20);
+    const int SubroundCount = 3;
+
 
     readonly Lock _lock = new();
 
@@ -33,6 +40,10 @@ public class GameInstance
     public readonly GameState State;
 
     DateTime _lastFrameTime = DateTime.MinValue;
+    DateTime _nextSubround = DateTime.MinValue;
+    int _nextSubroundIndex = 0;
+    bool _hasNextSubround = true;
+    ImmutableList<OutEvent.GameWinners.WinnerInfo>? _winners = null;
 
     public GameInstance(
         Dictionary<Guid, string> playing, RoomSettings settings
@@ -51,7 +62,6 @@ public class GameInstance
             worldInfo, JsonSettings.Settings
         );
         State = new GameState(Terrain.SizeT, Network);
-        AllocateRegionsAll();
     }
 
     /// <summary>
@@ -127,6 +137,25 @@ public class GameInstance
             _lastFrameTime = now;
             State.UpdateTrains(Network, _rng, deltaTime);
             State.SummonTrains(Network, Settings, _rng);
+            if (now >= _nextSubround && _hasNextSubround)
+            {
+                if (_nextSubroundIndex >= SubroundCount)
+                {
+                    _hasNextSubround = false;
+                    _winners = ComputeWinners();
+                    _nextSubround = DateTime.MaxValue;
+                }
+                else
+                {
+                    _nextSubroundIndex += 1;
+                    _nextSubround = now + SubroundLength;       
+                    AllocateRegionsAll();  
+                }       
+            }
+            else if (now >= _nextSubround && !_hasNextSubround)
+            {
+                _hasEnded = true;
+            }
         }
     }
 
@@ -143,6 +172,32 @@ public class GameInstance
         {
             if (Playing.GetValueOrDefault(pid) is not Player p) { return; }
             p.IsConnected = isConnected;
+        }
+    }
+
+    ImmutableList<OutEvent.GameWinners.WinnerInfo> ComputeWinners()
+        => Playing.Values
+        .Select(p => new OutEvent.GameWinners.WinnerInfo(
+            p.Name, p.NumPoints
+        ))
+        .ToList().OrderByDescending(p => p.NumPoints)
+        .ToImmutableList();
+
+    public ImmutableList<OutEvent.GameWinners.WinnerInfo>?
+    ShouldStartDisplayWinners()
+    {
+        lock (_lock)
+        {
+            if (_nextSubround != DateTime.MaxValue) { return null; }
+            return _winners;
+        }
+    }
+
+    public void ConfirmWinnerDisplay()
+    {
+        lock (_lock)
+        {
+            _nextSubround = DateTime.UtcNow + WinnerAnnounceLength;
         }
     }
 

@@ -178,4 +178,22 @@ public abstract record OutEvent
         public override string TypeString => "game_update";    
     }
 
+    /// <summary>
+    /// Used to tell the clients about the values of all trains that they are
+    /// allowed to know about, and about how many points they currently have.
+    /// </summary>
+    /// <param name="Trains">
+    ///     the values of all trains the client is allowed to know about
+    /// </param>
+    /// <param name="ClientNumPoints">
+    ///     the current total number of points the client player has
+    /// </param>
+    public sealed record PointCounts(
+        [property: JsonProperty("trains")] List<Train.KnownValue> Trains,
+        [property: JsonProperty("clientNumPoints")] int ClientNumPoints
+    ) : OutEvent
+    {
+        public override string TypeString => "point_counts";
+    }
+
 }

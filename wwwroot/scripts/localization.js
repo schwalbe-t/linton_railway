@@ -230,8 +230,13 @@ const LOCALIZATION = Object.freeze({
         "en": "Please keep the chat respectful and fun for everyone.",
         "de": "Bitte halte den Chat für alle respektvoll und unterhaltsam.",
         "bg": null  
-    }
+    },
 
+    "pointCounterText": {
+        "en": "Points",
+        "de": "Punkte",
+        "bg": "Точки"
+    }
 });
 
 const selectedLocale = localStorage.selectedLocale || detectLocale() || "en";

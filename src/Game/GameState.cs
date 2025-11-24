@@ -26,7 +26,7 @@ public sealed class GameState(int sizeT, TrackNetwork trackNetwork)
     /// The maximum number of trains in the network for every chunk occupied
     /// by the network that is owned by a player.
     /// </summary>
-    const int TrainCountLimit = 4;
+    const int TrainCountLimit = 6;
 
     [JsonIgnore]
     int _ownedRegionCount = 0;
@@ -103,7 +103,9 @@ public sealed class GameState(int sizeT, TrackNetwork trackNetwork)
         }
     }
 
-    public void UpdateTrains(TrackNetwork network, Random rng, float deltaTime)
+    public void UpdateTrains(
+        TrackNetwork network, Random rng, float deltaTime
+    )
     {
         foreach (var (trainId, train) in Trains)
         {
@@ -127,6 +129,17 @@ public sealed class GameState(int sizeT, TrackNetwork trackNetwork)
             Guid trainId = Guid.NewGuid();
             Trains[trainId] = train;
         }
+    }
+
+    public List<Train.KnownValue> GetKnownTrainValues(Guid playerId)
+    {
+        List<Train.KnownValue> trains = new();
+        foreach (var (tid, t) in Trains)
+        {
+            if (!t.ValueKnownTo.ContainsKey(playerId)) { continue; }
+            trains.Add(new Train.KnownValue(tid, t.Value));
+        }
+        return trains;
     }
 
 }

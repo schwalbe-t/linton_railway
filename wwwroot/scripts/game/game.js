@@ -31,6 +31,8 @@ window.addEventListener("load", () => {
 let renderer = null;
 let terrain = null;
 let network = null;
+let displayedPoints = 0;
+let currentPoints = 0;
 
 function init() {
     renderer = new Renderer();
@@ -42,6 +44,9 @@ function onReceiveWorld(world) {
             terrain.delete(); 
             network.delete();
         }
+        displayedPoints = -1;
+        currentPoints = -1;
+        onPointUpdate({ trains: [], clientNumPoints: -1 });
         Terrain.tessellateRivers(world.terrain);
         TrackNetwork.tessellateTrackSegments(world.network);
         const heightMap = new HeightMap(world);
@@ -59,6 +64,24 @@ function onReceiveGameState(state) {
     network.updateTrains(state.trains);
 }
 window.onReceiveGameState = onReceiveGameState;
+
+function onPointUpdate(event) {
+    if (network !== null) {
+        network.updateTrainPoints(event.trains);
+    }
+    const oldPoints = currentPoints;
+    currentPoints = event.clientNumPoints;
+    if (displayedPoints < oldPoints) { return; }
+    const addPoint = () => {
+        if (displayedPoints >= currentPoints) { return; }
+        displayedPoints += 1;
+        document.getElementById("game-point-counter-value").innerText
+            = displayedPoints;
+        setTimeout(addPoint, 50);
+    };
+    addPoint();
+}
+window.onPointUpdate = onPointUpdate;
 
 gameloop.onFrame(deltaTime => {
     if (terrain !== null) {

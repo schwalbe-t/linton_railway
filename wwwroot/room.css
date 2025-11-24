@@ -193,12 +193,44 @@
 .game-signal-container.signal-proceed::after {
     background: var(--green);
 }
-.game-region-text {
+.game-world-text {
     position: absolute;
     transform: translate(-50%, -100%);
     pointer-events: none;
+    white-space: nowrap;
     color: var(--dark-white);
+}
+.game-region-text {
     font-size: 2rem;
     font-weight: bold;
-    white-space: nowrap;
+}
+.game-train-text {
+    font-size: 1rem;
+    color: var(--dark-gray);
+    font-weight: bold;
+    font-family: "Jetbrains Mono";
+    background: var(--mid-white);
+    opacity: 0.5;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+}
+.game-train-text:empty { display: none; }
+.game-train-value-text { font-family: inherit; }
+.game-bad-train-text { color: var(--red); }
+.game-good-train-text { color: var(--green); }
+#game-point-counter-container {
+    z-index: 99999999;
+    position: absolute;
+    right: 2rem;
+    top: 2rem;
+    text-align: right;
+}
+#game-point-counter-text {
+    color: var(--text-main);
+}
+#game-point-counter-value {
+    color: var(--text-main);
+    font-weight: bold;
+    font-size: 3rem;
+    font-family: "Jetbrains Mono";
 }

@@ -1,5 +1,5 @@
 
-using System.Text.Json;
+using System.Collections.Concurrent;
 using Linton.Server;
 using Linton.Server.Sockets;
 using Newtonsoft.Json;
@@ -15,7 +15,7 @@ public class GameInstance
 
     readonly Lock _lock = new();
 
-    readonly Dictionary<Guid, Player> _playing;
+    public readonly ConcurrentDictionary<Guid, Player> Playing;
     public readonly RoomSettings Settings;
 
     bool _hasEnded = false;
@@ -38,8 +38,9 @@ public class GameInstance
         Dictionary<Guid, string> playing, RoomSettings settings
     )
     {
-        _playing = playing
-            .ToDictionary(p => p.Key, p => new Player(p.Key, p.Value));
+        Playing = new(
+            playing.ToDictionary(p => p.Key, p => new Player(p.Key, p.Value))
+        );
         Settings = settings;
         ushort seed = (ushort)new Random().Next(ushort.MaxValue + 1);
         _rng = new Random(seed);
@@ -59,7 +60,7 @@ public class GameInstance
     /// </summary>
     private void AllocateRegionsAll()
     {
-        List<Player> unallocated = _playing.Values.ToList();
+        List<Player> unallocated = Playing.Values.ToList();
         while (unallocated.Count > 0)
         {
             int i;
@@ -90,7 +91,7 @@ public class GameInstance
         }
         int centerX = Terrain.SizeC / 2;
         int centerZ = Terrain.SizeC / 2;
-        for(int rad = 0; ; rad += 1)
+        for (int rad = 0; ; rad += 1)
         {
             for (int rcx = -rad; rcx <= +rad; rcx += 1)
             {
@@ -112,7 +113,7 @@ public class GameInstance
     {
         lock (_lock)
         {
-            if (!_playing.Values.Any(p => p.IsConnected))
+            if (!Playing.Values.Any(p => p.IsConnected))
             {
                 _hasEnded = true;
                 return;
@@ -140,7 +141,7 @@ public class GameInstance
     {
         lock (_lock)
         {
-            if (_playing.GetValueOrDefault(pid) is not Player p) { return; }
+            if (Playing.GetValueOrDefault(pid) is not Player p) { return; }
             p.IsConnected = isConnected;
         }
     }

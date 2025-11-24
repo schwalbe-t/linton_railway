@@ -5,7 +5,7 @@ import {
     Geometry, Model, Shader, Texture, TextureFilter, TextureFormat
 } from "./graphics.js";
 import { Renderer } from "./renderer.js";
-import { RegionText, Signal } from "./world_ui.js";
+import { RegionText, Signal, TrainText } from "./world_ui.js";
 import { linspline, quadspline } from "./spline.js";
 import { chunks, tiles, units } from "./terrain.js";
 
@@ -62,6 +62,8 @@ export class Train {
         this.onNewState(trainState);
         this.chunkX = 0;
         this.chunKZ = 0;
+        this.knownValue = null;
+        this.text = new TrainText(new Vector3());
     }
 
     static MAX_OCC_COUNT = 50;
@@ -97,7 +99,17 @@ export class Train {
         return totalDist + Math.abs(nextState.segmentDist - endEndDist);
     }
 
+    static LOADING_TIME = 60.0; // needs to match server side constant
+
     onNewState(trainState, network = null) {
+        if (trainState.loadingTimer > 0) {
+            const remSecs = Math.floor(
+                Train.LOADING_TIME - trainState.loadingTimer
+            );
+            const dispRemSecs = Math.min(Math.max(remSecs, 0), 59);
+            const remTimeText = `${dispRemSecs}`.padStart(2, "0");
+            this.text.setText(`-00:${remTimeText}`);
+        }
         const olc = this.occSegments.at(-1)
             || { segmentIdx: -1, toHighEnd: false };
         const oldLastIdx = trainState.occupiedSegments
@@ -182,6 +194,10 @@ export class Train {
     static CAR_BOGEY_SPACING = Train.CAR_INTERVAL - Train.BOGEY_SPAN;
 
     static TRAIN_UP = new Vector3(0, 1, 0);
+    static TRAIN_TEXT_OFFSET = new Vector3(0, 5, 0);
+
+    static GOOD_MIN_VALUE = 8;
+    static BAD_MAX_VALUE = 4;
 
     render(renderer, network) {
         let localSegIdx = this.currentLocalSegIdx;
@@ -216,6 +232,7 @@ export class Train {
             linspline.advancePoint(seg.tesSpline, p, segDist);
             return linspline.atPoint(seg.tesSpline, p);
         };
+        let locoPos = null;
         let locoInstance = null;
         const carInstances = [];
         for (let carI = 0; carI <= this.carCount; carI += 1) {
@@ -236,14 +253,36 @@ export class Train {
             );
             const position = new Matrix4().translate(center);
             const instance = position.multiplyRight(rotation);
-            if (isLoco) { locoInstance = instance; }
-            else { carInstances.push(instance); }
+            if (isLoco) {
+                locoPos = center;
+                locoInstance = instance;
+            } else {
+                carInstances.push(instance);
+            }
         }
         const locoModel = Train.LOCO_MODELS[this.locoType];
         const s = Train.TRAIN_GEOMETRY_SHADER;
         s.setUniform("uTrainColor", Train.TRAIN_COLORS[this.color]);
         renderer.renderModel(locoModel, [locoInstance], null, s);
         renderer.renderModel(Train.CARRIAGE_MODEL, carInstances, null, s);
+        this.text.pos = locoPos.clone().add(Train.TRAIN_TEXT_OFFSET);
+        if (this.knownValue !== null) {
+            this.text.setText(
+                `${this.knownValue} ${getLocalized("pointCounterText")}`
+            );
+            this.text.element.classList.add("game-train-value-text");
+            if (this.knownValue >= Train.GOOD_MIN_VALUE) {
+                this.text.element.classList.add("game-good-train-text");
+            }
+            if (this.knownValue <= Train.BAD_MAX_VALUE) {
+                this.text.element.classList.add("game-bad-train-text");
+            }
+        }
+        this.text.update(renderer);
+    }
+
+    delete() {
+        this.text.delete();
     }
 
 }
@@ -705,6 +744,14 @@ export class TrackNetwork {
         }
     }
 
+    updateTrainPoints(trains) {
+        for (const entry of trains) {
+            const train = this.trains.get(entry.trainId);
+            if (!train) { continue; }
+            train.knownValue = entry.numPoints;
+        }
+    }
+
     update(deltaTime) {
         for (const train of this.trains.values()) {
             train.update(this, deltaTime);
@@ -773,6 +820,7 @@ export class TrackNetwork {
         });
         this.signals.forEach(s => s.delete());
         this.regionTexts.forEach(t => t.delete());
+        this.trains.forEach(t => t.delete());
     }
 
 }

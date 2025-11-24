@@ -63,12 +63,30 @@ export class Signal extends WorldUi {
 }
 
 
-export class RegionText extends WorldUi {
+export class WorldUiText extends WorldUi {
 
-    constructor(worldPos, text) {
+    constructor(worldPos, text = "") {
         super(worldPos, document.createElement("div"));
-        this.element.textContent = text;
-        this.element.classList.add("game-region-text");
+        this.element.classList.add("game-world-text");
+        if (text) { this.setText(text); }
     }
 
+    setText(content) {
+        this.element.textContent = content;
+    }
+
+}
+
+export class RegionText extends WorldUiText {
+    constructor(worldPos, text = "") {
+        super(worldPos, text);
+        this.element.classList.add("game-region-text");
+    }
+}
+
+export class TrainText extends WorldUiText {
+    constructor(worldPos, text = "") {
+        super(worldPos, text);
+        this.element.classList.add("game-train-text");
+    }
 }

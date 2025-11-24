@@ -118,6 +118,15 @@ public class Room(Guid id, RoomSettings settings)
         if (State is RoomState.Playing playing)
         {
             BroadcastEvent(new OutEvent.GameUpdate(playing.Game.State));
+            foreach (var (pid, p) in playing.Game.Playing)
+            {
+                if (!Connected.TryGetValue(pid, out User? u)) { continue; }
+                if (u is null) { continue; }
+                u.Socket.SendJson(new OutEvent.PointCounts(
+                    Trains: playing.Game.State.GetKnownTrainValues(pid),
+                    ClientNumPoints: p.NumPoints
+                ));
+            }
         }
     }
 

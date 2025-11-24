@@ -174,6 +174,12 @@ public sealed class TrackNetwork
     public readonly List<TrackConnection> Entrances = new();
 
     /// <summary>
+    /// The size (length) of the area occupied by the network in chunks.
+    /// </summary>
+    [JsonIgnore]
+    public readonly int SizeC;
+
+    /// <summary>
     /// Returns a list of all "low" or "high" endings of any track segments
     /// at the given point. If the point is not a key inside of 'Endings',
     /// a new list is inserted into the dictionary.
@@ -263,19 +269,23 @@ public sealed class TrackNetwork
 
     /// <summary>
     /// Constructs a new track network.
+    /// Stations must be provided in row-major chunk grid order.
     /// </summary>
     /// <param name="splines">the segment splines</param>
     /// <param name="splinesRight">spline data for 'SegmentsRight'</param>
     /// <param name="stations">the stations</param>
     /// <param name="entrances">positions of entrances</param>
+    /// <param name="sizeC">the size of the network area in chunks</param>
     public TrackNetwork(
         List<QuadSpline> splines, List<bool> splinesRight,
-        List<TrackStation> stations, List<Vector3> entrances
+        List<TrackStation> stations, List<Vector3> entrances,
+        int sizeC
     )
     {
         Stations = stations;
         Segments = splines.Select(BuildSegment).ToList();
         SegmentsRight = splinesRight;
+        SizeC = sizeC;
         for (int segmentIdx = 0; segmentIdx < Segments.Count; segmentIdx += 1)
         {
             BuildEndings(Segments[segmentIdx], segmentIdx);
@@ -285,6 +295,28 @@ public sealed class TrackNetwork
             FindConnections(Segments[segmentIdx]);
         }
         entrances.ForEach(e => Entrances.AddRange(FindEndings(e)));
+    }
+
+    /// <summary>
+    /// Determines if the given position in unit world space is inside of the
+    /// areas of any of the track stations on the network.
+    /// </summary>
+    /// <param name="p">the point to check for</param>
+    /// <returns>(if found) the chunk coordinates of the station</returns>
+    public (int, int)? IsInsideStation(Vector3 p)
+    {
+        for (int sIdx = 0; sIdx < Stations.Count; sIdx += 1)
+        {
+            TrackStation s = Stations[sIdx];
+            bool isInside = s.MinPos.X <= p.X && p.X <= s.MaxPos.X
+                && s.MinPos.Y <= p.Y && p.Y <= s.MaxPos.Y
+                && s.MinPos.Z <= p.Z && p.Z <= s.MaxPos.Z;
+            if (!isInside) { continue; }
+            int chunkX = sIdx % SizeC;
+            int chunkZ = sIdx / SizeC;
+            return (chunkX, chunkZ);
+        }
+        return null;
     }
 
 }

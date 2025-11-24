@@ -327,5 +327,9 @@ function onSocketEvent(event) {
             onReceiveGameState(event.state);
             break;
         }
+        case "point_counts": {
+            onPointUpdate(event);
+            break;
+        }
     }
 }

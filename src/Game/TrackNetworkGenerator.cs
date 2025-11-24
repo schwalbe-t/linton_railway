@@ -52,9 +52,6 @@ public sealed class TrackNetworkGenerator
         _ => d
     };
 
-    static bool DirSameAxis(Direction a, Direction b)
-        => a == b || OppDir(a) == b;
-
 
     readonly struct StationEntrances(
         int entryAX, int entryAZ, Direction entryADir,
@@ -74,15 +71,15 @@ public sealed class TrackNetworkGenerator
 
     const int MaxStationOffsetT = 5;
     const int MinNumStationPlatforms = 2;
-    const int MaxNumStationPlatforms = 3;
+    const int MaxNumStationPlatforms = 2;
     const int StationEntryOffsetT = 3;
     const int PlatformSpacingT = 2;
 
     static int StationLengthTiles(RoomSettings s) => s.TrainLength switch
     {
-        TrainLength.Short => 3,
-        TrainLength.Medium => 5,
-        TrainLength.Long => 7,
+        TrainLength.Short => 4,
+        TrainLength.Medium => 6,
+        TrainLength.Long => 8,
         _ => 0
     };
 
@@ -728,7 +725,9 @@ public sealed class TrackNetworkGenerator
         List<QuadSpline> doubled = new();
         List<bool> isRight = new();
         _splines.ForEach(s => DoubleTrackSpline(s, doubled, isRight));
-        return new TrackNetwork(doubled, isRight, _stations, _entrances);
+        return new TrackNetwork(
+            doubled, isRight, _stations, _entrances, Terrain.SizeC
+        );
     }
 
 }

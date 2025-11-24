@@ -1,4 +1,5 @@
 
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Numerics;
 using System.Runtime.Serialization;
@@ -28,6 +29,11 @@ public enum TrainColor
 
 public sealed class Train
 {
+    public record struct KnownValue(
+        [property: JsonProperty("trainId")] Guid TrainId,
+        [property: JsonProperty("numPoints")] int NumPoints
+    );
+
     static readonly LocomotiveType[] LocoTypes
         = Enum.GetValues<LocomotiveType>();
 
@@ -80,6 +86,10 @@ public sealed class Train
     /// </summary>
     const int MaxOccupiedSegmentCount = 20;
 
+    const int MinTrainValue = 2;
+    const int MaxTrainValue = 10;
+
+    const float StationLoadingTime = 60f; // needs to match client side constant
 
     [JsonProperty("locoType")]
     public readonly LocomotiveType LocoType = DefaultLocoType;
@@ -118,6 +128,17 @@ public sealed class Train
     public TrackConnection CurrentSegment
     { get { lock (_lock) { return _occupiedSegments[^1]; } } }
 
+    [JsonIgnore]
+    public readonly int Value;
+
+    [JsonIgnore]
+    float _loadingTimer = 0f;
+    [JsonProperty("loadingTimer")]
+    public float LoadingTimer { get { lock (_lock) { return _loadingTimer; } } }
+
+    [JsonIgnore]
+    public readonly ConcurrentDictionary<Guid, bool> ValueKnownTo = new();
+
     public Train(
         TrackNetwork network, TrackConnection segment,
         RoomSettings settings, Random rng
@@ -137,6 +158,7 @@ public sealed class Train
             TrackSegment seg = network.Segments[segment.SegmentIdx];
             _segmentDist = seg.LSpline.ComputeLength();
         }
+        Value = rng.Next(MinTrainValue, MaxTrainValue + 1);
     }
 
     static TrackConnection? ChooseNextSegment(
@@ -176,7 +198,7 @@ public sealed class Train
 
     const float StoppingDistStepSize = 10000f; // large value
     const float MaxStoppingDist = 50f; // don't keep looking after this value
-    const float TrainDistPadding = 10f; // min distance between trains (per car)
+    const float TrainDistPadding = 12.5f; // min distance between trains (per car)
     const float BranchExitPadding = 15f;
 
     static float NextStopPointDist(
@@ -356,6 +378,35 @@ public sealed class Train
         }
     }
 
+    Vector3 ComputeSegmentCenter(TrackNetwork network)
+    {
+        TrackSegment seg = network.Segments[_occupiedSegments[^1].SegmentIdx];
+        float segLen = seg.LSpline.ComputeLength();
+        LinSpline.Point p = new();
+        seg.LSpline.AdvancePoint(ref p, segLen / 2f, out _);
+        return seg.LSpline.AtPoint(p);
+    }
+
+    void UpdateLoadingTime(
+        TrackNetwork network, GameState state, float deltaTime
+    )
+    {
+        float oldLoadingTimer = _loadingTimer;
+        _loadingTimer = 0f;
+        Vector3 pos = ComputeSegmentCenter(network);
+        if (network.IsInsideStation(pos) is not (int scx, int scz)) { return; }
+        RegionMap.Region sReg = state.Regions.RegionOfChunk(scx, scz);
+        if (sReg.Owner is not Player sOwner) { return; }
+        if (ValueKnownTo.ContainsKey(sOwner.Id)) { return; }
+        if (oldLoadingTimer >= StationLoadingTime)
+        {
+            ValueKnownTo[sOwner.Id] = true;
+            sOwner.IncrementPoints(Value);
+            return;
+        }
+        _loadingTimer = oldLoadingTimer + deltaTime;
+    }
+
     const float MovementTimeStepSize = 0.003f;
 
     public void Update(
@@ -373,6 +424,7 @@ public sealed class Train
                 MoveDistance(network, state, rng, dist);
                 remTime -= MovementTimeStepSize;
             }
+            UpdateLoadingTime(network, state, deltaTime);
         }
     }
 

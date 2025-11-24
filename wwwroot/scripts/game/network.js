@@ -290,7 +290,7 @@ export class Train {
 
 export class TrackNetwork {
 
-    static TRACK_TESSELLATION_RES = 10;
+    static TRACK_TESSELLATION_RES = 6;
 
     static tessellateTrackSegments(networkDetails) {
         for (const segment of networkDetails.segments) {

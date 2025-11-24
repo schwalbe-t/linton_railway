@@ -94,6 +94,7 @@
 .setting-container > button {
     margin: 0;
     min-width: 6rem;
+    color: var(--text-main) !important;
 }
 .setting-container > .setting-positive {
     color: var(--green) !important;
@@ -243,4 +244,62 @@
     width: 100vw;
     height: 100vh;
     background: var(--bg-back);
+}
+#game-winners-container {
+    position: absolute;
+    left: 50vw;
+    top: 50vh;
+    transform: translate(-50%, -50%);
+    background: var(--bg-mid);
+    width: 50vmin;
+    padding: 3rem;
+    border-radius: 0.5rem;
+}
+#game-winners-container > h2 {
+    display: inline-block;
+}
+#game-winners-list {
+    width: 100%;
+    padding: 1rem 0 1rem 0;
+    max-height: 50vh;
+    overflow: auto;
+}
+.game-winner-item {
+    margin-bottom: 0.25rem;
+    display: flex;
+    flex-direction: row;
+}
+.game-winner-item > div {
+    padding: 0.25rem;
+    height: 1rem;
+    font-size: 1rem;
+}
+.game-winner-placement {
+    font-family: "Jetbrains Mono";
+    font-weight: bold;
+    color: var(--text-main);
+    min-width: 1rem;
+    text-align: center;
+}
+.game-winner-placement.game-winner-placement-first {
+    background: var(--text-main);
+    color: var(--bg-mid);
+    border-radius: 0.25rem;
+}
+.game-winner-name {
+    flex-grow: 1;
+    margin-left: 0.5rem;
+}
+.game-winner-score {
+    font-family: "Jetbrains Mono";
+    font-weight: bold;
+    color: var(--text-main);
+}
+#game-winners-end-timer {
+    float: right;
+    padding: 0.25rem 0.5rem 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    background: var(--bg-front);
+    font-family: "Jetbrains Mono";
+    font-weight: bold;
 }

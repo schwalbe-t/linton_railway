@@ -236,6 +236,11 @@ const LOCALIZATION = Object.freeze({
         "en": "Points",
         "de": "Punkte",
         "bg": "Точки"
+    },
+    "gameResultsTitle": {
+        "en": "Game Results",
+        "de": "Splielergebnis",
+        "bg": null
     }
 });
 

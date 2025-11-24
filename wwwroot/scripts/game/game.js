@@ -84,10 +84,49 @@ function onPointUpdate(event) {
 }
 window.onPointUpdate = onPointUpdate;
 
+const WINNER_SCREEN_TIME = 20; // needs to match server side constant
+
 function onWinnersAnnounced(winners) {
     const page = document.getElementById("game-winner-page");
     page.style.display = "block";
-    page.innerHTML = winners.map(w => w.name).join("<br>");
+    const list = document.getElementById("game-winners-list");
+    list.innerHTML = "";
+    let currentPlacement = 0;
+    let lastScore = Infinity;
+    for (const winner of winners) {
+        const item = document.createElement("div");
+        item.classList.add("game-winner-item");
+        if (winner.numPoints < lastScore) {
+            lastScore = winner.numPoints;
+            currentPlacement += 1;
+        } 
+        const placement = document.createElement("div");
+        placement.classList.add("game-winner-placement");
+        if (currentPlacement === 1) {
+            placement.classList.add("game-winner-placement-first");
+        }
+        placement.innerText = currentPlacement;
+        item.appendChild(placement);
+        const name = document.createElement("div");
+        name.classList.add("game-winner-name");
+        name.innerText = winner.name;
+        item.appendChild(name);
+        const points = document.createElement("div");
+        points.classList.add("game-winner-score");
+        points.innerText = winner.numPoints;
+        item.appendChild(points);
+        list.appendChild(item);
+    }
+    const clock = document.getElementById("game-winners-end-timer");
+    let remSeconds = WINNER_SCREEN_TIME;
+    const displayTimer = () => {
+        if (page.style.display !== "block") { return; }
+        clock.innerText = "00:" + `${remSeconds}`.padStart(2, "0");
+        remSeconds -= 1;
+        if (remSeconds <= 0) { return; }
+        setTimeout(displayTimer, 1000);
+    };
+    displayTimer();
 }
 window.onWinnersAnnounced = onWinnersAnnounced;
 

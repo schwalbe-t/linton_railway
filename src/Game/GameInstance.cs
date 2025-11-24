@@ -14,7 +14,7 @@ namespace Linton.Game;
 public class GameInstance
 {
 
-    static readonly TimeSpan SubroundLength = TimeSpan.FromSeconds(10);
+    static readonly TimeSpan SubroundLength = TimeSpan.FromMinutes(5);
     // needs to match client side constant
     static readonly TimeSpan WinnerAnnounceLength = TimeSpan.FromSeconds(20);
     const int SubroundCount = 3;
@@ -107,9 +107,8 @@ public class GameInstance
             {
                 for (int rcz = -rad; rcz <= +rad; rcz += 1)
                 {
-                    bool onEdge = rad == 0
-                        || Math.Abs(rcx) == rad != (Math.Abs(rcz) == rad);
-                    if (!onEdge) { continue; }
+                    bool isCorner = rad != 0 && Math.Abs(rcx) == Math.Abs(rcz);
+                    if (isCorner) { continue; }
                     if (TryAllocate(centerX + rcx, centerZ + rcz)) { return; }
                 }
             }
@@ -184,7 +183,7 @@ public class GameInstance
         .ToImmutableList();
 
     public ImmutableList<OutEvent.GameWinners.WinnerInfo>?
-    ShouldStartDisplayWinners()
+        ShouldStartDisplayWinners()
     {
         lock (_lock)
         {

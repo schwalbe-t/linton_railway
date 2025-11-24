@@ -31,11 +31,13 @@
                 </div>
                 <br><br>
                 <h2 localized="gameSettings"></h2>
-                <div class="setting-container">
+                    <!-- TODO! re-enable when setting used by feature -->
+                <div class="setting-container" style="display: none">
                     <div><div localized="gameSettingTrainNameLanguage"></div></div>
                     <button id="game-setting-train-name-language"></button>
                 </div>
-                <div class="setting-container">
+                    <!-- TODO! re-enable when setting used by feature -->
+                <div class="setting-container" style="display: none">
                     <div><div localized="gameSettingTrainNameChanges"></div></div>
                     <button id="game-setting-train-name-changes"></button>
                 </div>
@@ -56,7 +58,13 @@
                 <div id="game-point-counter-text" localized="pointCounterText"></div>
                 <div id="game-point-counter-value"></div>
             </div>
-            <div id="game-winner-page"></div>
+            <div id="game-winner-page">
+                <div id="game-winners-container">
+                    <h2 localized="gameResultsTitle"></h2>
+                    <div id="game-winners-end-timer"></div>
+                    <div id="game-winners-list"></div>
+                </div>
+            </div>
         </div>
         <div id="chat-container">
             <div id="chat-message-list"></div>

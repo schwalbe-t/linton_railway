@@ -54,6 +54,31 @@ public class Room(Guid id, RoomSettings settings)
         private set { lock (_lock) { _isClosed = value; } }
     }
 
+    string? _inviteCode = null;
+    /// <summary>
+    /// The invite code that maps to this room.
+    /// </summary>
+    public string? InviteCode
+    {
+        get { lock (_lock) { return _inviteCode; } }
+    }
+
+    /// <summary>
+    /// Attempts to assign the given invite code to the room.
+    /// If the room already has an invite code nothing is changed.
+    /// </summary>
+    /// <param name="code">the new room invite code</param>
+    /// <returns>whether the room invite code was changed</returns>
+    public bool TrySetInviteCode(string code)
+    {
+        lock (_lock)
+        {
+            if (_inviteCode is not null) { return false; }
+            _inviteCode = code;
+        }
+        return true;
+    }
+
     readonly ConcurrentDictionary<Guid, User> _connected = new();
     /// <summary>
     /// A map of user IDs to users for all currently connected users.

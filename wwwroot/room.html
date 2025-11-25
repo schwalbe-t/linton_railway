@@ -20,8 +20,14 @@
             <div id="waiting-players-container">
                 <h2 localized="players"></h2>
                 <div id="waiting-player-list"></div>
-                <button id="get-ready" localized="getReady"></button>
-                <button id="copy-invite-link" localized="copyInviteLink"></button>
+                <div class="waiting-button-row">
+                    <button id="show-invite-code" class="input-small" localized="showInviteCode"></button>
+                    <span id="room-invite-code" class="last-button">A0B1C2D3</span>
+                </div>
+                <div class="waiting-button-row">
+                    <button id="copy-invite-link" class="input-small" localized="copyInviteLink"></button>
+                    <button id="get-ready" class="input-small last-button" localized="getReady"></button>
+                </div>
             </div>
             <div id="settings-container">
                 <h2 localized="roomSettings"></h2>

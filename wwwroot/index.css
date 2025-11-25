@@ -25,9 +25,26 @@
     min-width: 35vmin;
 }
 #room-create-error {
+    position: absolute;
     margin-top: 0.5rem;
+    margin-left: 50%;
+    transform: translate(-50%, 0);
     height: 0px;
     color: var(--red);
+    overflow-x: visible;
+    text-wrap: nowrap;
+}
+#room-code-join-row {
+    display: flex;
+    flex-direction: row;
+}
+#room-code-join-row > input {
+    font-family: "Jetbrains Mono";
+    width: 8rem;
+}
+#room-code-join-row > button {
+    margin-left: 0.5rem;
+    flex-grow: 1;
 }
 
 #github-link {

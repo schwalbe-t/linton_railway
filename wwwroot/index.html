@@ -24,8 +24,12 @@
             </div>
             <div id="room-selector">
                 <button localized="joinPublicRoom" class="input-big" onclick="joinPublicRoom()"></button>
-                <br>
+                <div id="room-code-join-row">
+                    <input placeholder="________" maxlength="8" class="input-big" id="room-invite-code"></input>
+                    <button localized="joinRoomByCode" class="input-big" onclick="joinByCode()"></button>
+                </div>
                 <button localized="createPrivateRoom" class="input-big" onclick="createRoom()"></button>
+                <br>
                 <div id="room-create-error"></div>
             </div>
         </div>

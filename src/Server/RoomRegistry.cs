@@ -32,8 +32,15 @@ public static class RoomRegistry
 
     static readonly ConcurrentDictionary<Guid, Room> _publicRooms = new();
 
+    static readonly ConcurrentDictionary<string, Guid> _roomInviteCodes = new();
+    public static IReadOnlyDictionary<string, Guid> RoomInviteCodes
+        => _roomInviteCodes;
+
     static readonly ConcurrentDictionary<string, DateTime> _clientCooldowns
         = new();
+
+    static readonly Lock _lock = new();
+    static readonly Random _rng = new();
 
     /// <summary>
     /// Checks if the given client IP is allowed to create a new room.
@@ -146,6 +153,52 @@ public static class RoomRegistry
             bestLastGame = roomLastGame;
         }
         return bestId;
+    }
+
+    const string InviteCodeDigits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const int InviteCodeLength = 8;
+
+    /// <summary>
+    /// Generates a random, unique room invite code and maps it to the given
+    /// room id.
+    /// </summary>
+    /// <param name="roomId">the ID of the room</param>
+    /// <returns>the generated invite code</returns>
+    static string GenerateRoomInviteCode(Guid roomId)
+    {
+        lock (_lock)
+        {
+            int digitCount = InviteCodeDigits.Length;
+            string generated = "";
+            do
+            {
+                char[] digits = Enumerable.Range(0, InviteCodeLength)
+                    .Select(_ => InviteCodeDigits[_rng.Next(digitCount)])
+                    .ToArray();
+                generated = new string(digits);
+            }
+            while (!_roomInviteCodes.TryAdd(generated, roomId));
+            return generated;
+        }
+    }
+
+    /// <summary>
+    /// Returns the invite code that matches the given room ID.
+    /// If the given room does not currently have an invite code, a new one
+    /// is created.
+    /// </summary>
+    /// <param name="roomId">the ID of the room</param>
+    /// <returns>the room invite code (or null if room doesn't exist)</returns>
+    public static string? GetRoomInviteCode(Guid roomId)
+    {
+        if (!Rooms.TryGetValue(roomId, out Room? room)) { return null; }
+        if (room is null) { return null; }
+        string? existingCode = room.InviteCode;
+        if (existingCode is not null) { return existingCode; }
+        string newCode = GenerateRoomInviteCode(roomId);
+        if (room.TrySetInviteCode(newCode)) { return newCode; }
+        _roomInviteCodes.Remove(newCode, out _);
+        return room.InviteCode;
     }
 
 }

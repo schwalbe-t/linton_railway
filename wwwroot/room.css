@@ -64,7 +64,32 @@
     margin-right: 2px;
 }
 .player-kick-button > img { height: 1rem; }
-#copy-invite-link { float: right; }
+
+#waiting-players-container > .waiting-button-row {
+    display: flex;
+    flex-direction: row;
+}
+#waiting-players-container > .waiting-button-row > * {
+    min-width: 45%;
+}
+#waiting-players-container > .waiting-button-row > .last-button {
+    margin-left: auto;
+}
+#room-invite-code {
+    display: none;
+    margin-top: 0.5rem;
+    font-size: 1.5rem;
+    padding: 0.2rem;
+    border-radius: 0.25rem;
+    float: right;
+    text-align: center;
+    min-width: 45%;
+    font-family: "Jetbrains Mono";
+    box-sizing: border-box;
+    outline: 2px solid var(--bg-front);
+    color: var(--text-main);
+    font-weight: bold;
+}
 
 #settings-container {
     position: absolute;

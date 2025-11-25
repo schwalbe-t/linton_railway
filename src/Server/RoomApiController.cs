@@ -62,4 +62,22 @@ public sealed class RoomApiController : ControllerBase
             ?? "unknown";
         return AttemptRoomCreation(clientIp, true);
     }
+
+    [HttpGet("getInviteCode")]
+    public IActionResult GetInviteCode(Guid roomId)
+    {
+        string? inviteCode = RoomRegistry.GetRoomInviteCode(roomId);
+        if (inviteCode is not null) { return Ok(new { inviteCode }); }
+        return StatusCode(400, new { error = "Room does not exist" });
+    }
+
+    [HttpGet("findByInviteCode")]
+    public IActionResult FindByInviteCode(string inviteCode)
+    {
+        if (RoomRegistry.RoomInviteCodes.TryGetValue(inviteCode, out Guid i))
+        {
+            return Ok(new { roomId = i });
+        }
+        return StatusCode(400, new { error = "Unknown invite code" });
+    }
 }

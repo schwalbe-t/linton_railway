@@ -29,6 +29,19 @@ function initInviteLink() {
     };
 }
 
+function initInviteCode() {
+    const showInviteCode = document.getElementById("show-invite-code");
+    const inviteCodeReqUrl = `/api/rooms/getInviteCode?roomId=${roomId}`;
+    showInviteCode.onclick = () => fetch(inviteCodeReqUrl)
+        .then(r => r.json())
+        .then(j => {
+            showInviteCode.disabled = true;
+            const inviteCodeDisp = document.getElementById("room-invite-code");
+            inviteCodeDisp.style.display = "block";
+            inviteCodeDisp.innerText = j.inviteCode;
+        });
+}
+
 function initChat() {
     const chatMessageInput = document.getElementById("chat-message-input");
     const chatMessageSend = document.getElementById("chat-message-send");
@@ -65,6 +78,7 @@ window.addEventListener("load", () => {
     }
     connectWebsocket(roomId, localStorage.username);
     initInviteLink();
+    initInviteCode();
     initChat();
 });
 

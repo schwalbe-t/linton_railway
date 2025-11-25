@@ -92,6 +92,11 @@ button:disabled:hover {
 button, input {
     margin-top: 0.5rem;
 }
+.input-small {
+    font-size: 0.85rem;
+    padding: 0.6rem;
+    border-radius: 0.25rem;
+}
 .input-big {
     font-size: 1.25rem;
     padding: 1rem;

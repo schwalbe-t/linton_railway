@@ -35,6 +35,11 @@ const LOCALIZATION = Object.freeze({
         "de": "Öffentlichem Raum Beitreten",
         "bg": null,
     },
+    "joinRoomByCode": {
+        "en": "Join (Code)",
+        "de": "Beitreten (Code)",
+        "bg": null
+    },
     "roomCreationFailed": {
         "en": "Failed to create a room. Please try again.",
         "de": "Konnte keinen Raum erstellen. Bitte erneut versuchen.",
@@ -43,6 +48,11 @@ const LOCALIZATION = Object.freeze({
     "roomCreationCooldown": {
         "en": "Please wait before creating another room.",
         "de": "Bitte warten Sie, bevor sie erneut einen Raum erstellen.",
+        "bg": null
+    },
+    "invalidJoinCode": {
+        "en": "The given room code is incorrect. Please try again.",
+        "de": "Der Raumcode ist inkorrekt. Bitte erneut versuchen.",
         "bg": null
     },
 
@@ -157,6 +167,11 @@ const LOCALIZATION = Object.freeze({
     "getReady": {
         "en": "I Am Ready",
         "de": "Ich Bin Bereit",
+        "bg": null
+    },
+    "showInviteCode": {
+        "en": "Show Invitation Code",
+        "de": "Einladungscode Zeigen",
         "bg": null
     },
 

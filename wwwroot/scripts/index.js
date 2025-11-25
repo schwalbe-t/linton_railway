@@ -19,13 +19,14 @@ window.addEventListener('popstate', () => {
     location.reload();
 });
 
-const handleRoomFindResponse = request => request
+const handleRoomFindResponse = (request, error) => request
     .then(r => {
         if(r.ok) { return r.json(); }
         const roomErr = document.getElementById("room-create-error");
         if(roomErr.innerText.length !== 0) { return null; }
-        roomErr.innerText = getLocalized(
-            r.status === 429? "roomCreationCooldown" : "roomCreationFailed"
+        roomErr.innerText = getLocalized(error !== undefined
+            ? error
+            : r.status === 429 ? "roomCreationCooldown" : "roomCreationFailed"
         );
         setTimeout(() => {
             roomErr.innerText = "";
@@ -54,6 +55,13 @@ function createRoom() {
 
 function joinPublicRoom() {
     handleRoomFindResponse(fetch("/api/rooms/findPublic"));
+}
+
+function joinByCode() {
+    const codeInput = document.getElementById("room-invite-code");
+    const inviteCode = codeInput.value.trim().toUpperCase();
+    const reqUrl = `/api/rooms/findByInviteCode?inviteCode=${inviteCode}`;
+    handleRoomFindResponse(fetch(reqUrl), "invalidJoinCode");
 }
 
 function prepareJoin(roomId) {

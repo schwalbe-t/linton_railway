@@ -156,7 +156,7 @@ public sealed class Train
         if (segment.ToHighEnd)
         {
             TrackSegment seg = network.Segments[segment.SegmentIdx];
-            _segmentDist = seg.LSpline.ComputeLength();
+            _segmentDist = seg.LSpline.TotalLength;
         }
         Value = rng.Next(MinTrainValue, MaxTrainValue + 1);
     }
@@ -282,7 +282,7 @@ public sealed class Train
             p = new LinSpline.Point();
             if (!ascend)
             {
-                float segLen = seg.LSpline.ComputeLength();
+                float segLen = seg.LSpline.TotalLength;
                 seg.LSpline.AdvancePoint(ref p, segLen, out _);
                 segDist = segLen;
             }
@@ -368,7 +368,7 @@ public sealed class Train
             if (next.ToHighEnd)
             {
                 TrackSegment nSeg = network.Segments[next.SegmentIdx];
-                _segmentDist = nSeg.LSpline.ComputeLength();
+                _segmentDist = nSeg.LSpline.TotalLength;
             }
         }
         int rmOccSegCount = _occupiedSegments.Count - MaxOccupiedSegmentCount;
@@ -381,7 +381,7 @@ public sealed class Train
     Vector3 ComputeSegmentCenter(TrackNetwork network)
     {
         TrackSegment seg = network.Segments[_occupiedSegments[^1].SegmentIdx];
-        float segLen = seg.LSpline.ComputeLength();
+        float segLen = seg.LSpline.TotalLength;
         LinSpline.Point p = new();
         seg.LSpline.AdvancePoint(ref p, segLen / 2f, out _);
         return seg.LSpline.AtPoint(p);

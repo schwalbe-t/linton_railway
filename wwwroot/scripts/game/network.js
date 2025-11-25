@@ -85,15 +85,14 @@ export class Train {
             // toHighEnd = true  (descending) + dirEnd = false => len
             // toHighEnd = false (ascending)  + dirEnd = true  => len
             // toHighEnd = false (ascending)  + dirEnd = false => 0.0
-            return conn.toHighEnd === dirEnd ? 0.0
-                : linspline.computeLength(seg.tesSpline);
+            return conn.toHighEnd === dirEnd ? 0.0 : seg.tesSpline.totalLength;
         };
         const startEndDist = localSegEndDist(startLsi, true);
         let totalDist = Math.abs(this.currentSegDist - startEndDist);
         for (let lsi = startLsi + 1; lsi < endLsi; lsi += 1) {
             const conn = this.occSegments[lsi];
             const seg = network.segments[conn.segmentIdx];
-            totalDist += linspline.computeLength(seg.tesSpline);
+            totalDist += seg.tesSpline.totalLength;
         }
         const endEndDist = localSegEndDist(endLsi, false);
         return totalDist + Math.abs(nextState.segmentDist - endEndDist);
@@ -172,8 +171,7 @@ export class Train {
             const newLocalSeg = this.occSegments[this.currentLocalSegIdx];
             if (newLocalSeg.toHighEnd) {
                 const newSeg = network.segments[newLocalSeg.segmentIdx];
-                const newSegLen = linspline.computeLength(newSeg.tesSpline);
-                this.currentSegDist = newSegLen;
+                this.currentSegDist = newSeg.tesSpline.totalLength;
             }
         }
     }
@@ -221,7 +219,7 @@ export class Train {
                 const newLocalSeg = this.occSegments[localSegIdx];
                 if (!newLocalSeg.toHighEnd) {
                     const newSeg = network.segments[newLocalSeg.segmentIdx];
-                    segDist = linspline.computeLength(newSeg.tesSpline);
+                    segDist = newSeg.tesSpline.totalLength;
                 }
             }
         };

@@ -1,4 +1,5 @@
 
+using System.Collections.Immutable;
 using System.Numerics;
 using Newtonsoft.Json;
 
@@ -10,11 +11,66 @@ namespace Linton.Game;
 /// </summary>
 /// <param name="Start">the starting point</param>
 /// <param name="Segments">the following points</param>
-public sealed record LinSpline(
-    [property: JsonProperty("start")] Vector3 Start,
-    [property: JsonProperty("segments")] List<Vector3> Segments
-)
+public sealed class LinSpline
 {
+
+    /// <summary>
+    /// The starting point of the spline.
+    /// </summary>
+    [JsonProperty("start")]
+    public readonly Vector3 Start;
+
+    /// <summary>
+    /// The positions of each of the control points in the spline,
+    /// starting from the control point after the starting point up to the
+    /// end of the spline.
+    /// </summary>
+    [JsonProperty("segments")]
+    public readonly ImmutableList<Vector3> Segments;
+
+    /// <summary>
+    /// Contains the length of each segment, where each entry is the distance
+    /// between the point with the same index in 'Segments' and the point
+    /// before it (or the starting point if there is none).
+    /// </summary>
+    [JsonProperty("segmentLengths")]
+    public readonly ImmutableList<float> SegmentLengths;
+
+    /// <summary>
+    /// The sum of the lengths of all spline segments.
+    /// </summary>
+    [JsonProperty("totalLength")]
+    public readonly float TotalLength;
+
+    /// <summary>
+    /// Creates a new linear spline from the given start point and the given
+    /// following control points.
+    /// </summary>
+    /// <param name="start">the first control point</param>
+    /// <param name="segments">the next control points</param>
+    public LinSpline(Vector3 start, ImmutableList<Vector3> segments)
+    {
+        Start = start;
+        Segments = segments;
+        SegmentLengths = Enumerable.Range(0, segments.Count)
+            .Select(ComputeSegmentLength)
+            .ToImmutableList();
+        TotalLength = SegmentLengths.Aggregate(0f, (a, b) => a + b);
+    }
+
+    /// <summary>
+    /// Returns the concrete length of one of the segments of the spline.
+    /// </summary>
+    /// <param name="segmentI">the index of the segment</param>
+    /// <returns>the euclidian length of the segment</returns>
+    float ComputeSegmentLength(int segmentI)
+    {
+        Vector3 start = segmentI == 0 ? Start
+            : Segments[segmentI - 1];
+        Vector3 end = Segments[segmentI];
+        return Vector3.Distance(start, end);
+    }
+
     /// <summary>
     /// Returns a point along the spline.
     /// </summary>
@@ -29,19 +85,6 @@ public sealed record LinSpline(
             : Segments[segmentI - 1];
         Vector3 end = Segments[segmentI];
         return Vector3.Lerp(start, end, t);
-    }
-
-    /// <summary>
-    /// Returns the concrete length of one of the segments of the spline.
-    /// </summary>
-    /// <param name="segmentI">the index of the segment</param>
-    /// <returns>the euclidian length of the segment</returns>
-    public float SegmentLength(int segmentI)
-    {
-        Vector3 start = segmentI == 0 ? Start
-            : Segments[segmentI - 1];
-        Vector3 end = Segments[segmentI];
-        return Vector3.Distance(start, end);
     }
 
     /// <summary>
@@ -72,7 +115,7 @@ public sealed record LinSpline(
         point.Distance = 0f;
         while (point.SegmentI < Segments.Count)
         {
-            float segLen = SegmentLength(point.SegmentI);
+            float segLen = SegmentLengths[point.SegmentI];
             if (segLen > remDist)
             {
                 point.Distance = remDist;
@@ -82,7 +125,7 @@ public sealed record LinSpline(
             point.SegmentI += 1;
         }
         point.SegmentI = Segments.Count - 1;
-        point.Distance = SegmentLength(point.SegmentI);
+        point.Distance = SegmentLengths[point.SegmentI];
         atEnd = true;
         return distance - remDist;
     }
@@ -111,7 +154,7 @@ public sealed record LinSpline(
         while (point.SegmentI > 0)
         {
             point.SegmentI -= 1;
-            float segLen = SegmentLength(point.SegmentI);
+            float segLen = SegmentLengths[point.SegmentI];
             if (segLen > remDist)
             {
                 point.Distance = segLen - remDist;
@@ -131,22 +174,8 @@ public sealed record LinSpline(
     /// <returns>the concrete point</returns>
     public Vector3 AtPoint(Point point)
     {
-        float t = point.Distance / SegmentLength(point.SegmentI);
+        float t = point.Distance / SegmentLengths[point.SegmentI];
         return InSegment(point.SegmentI, t);
     }
 
-    /// <summary>
-    /// Computes the length of the spline by summing up the lengths of all
-    /// segments.
-    /// </summary>
-    /// <returns>the total length of the spline</returns>
-    public float ComputeLength()
-    {
-        float l = 0.0f;
-        for (int segI = 0; segI < Segments.Count; segI += 1)
-        {
-            l += SegmentLength(segI);
-        }
-        return l;
-    }
 }

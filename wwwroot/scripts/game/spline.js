@@ -35,15 +35,38 @@ export const quadspline = Object.freeze({
                 builtSegments[segI * numSegPoints + subSegI - 1] = p;
             }
         }
-        return {
-            start: new Vector3(spline.start),
-            segments: builtSegments
-        };
+        return linspline.create(new Vector3(spline.start), builtSegments);
     }
 
 });
 
 export const linspline = Object.freeze({
+
+    create: function(start, segments) {
+        const r = { start, segments };
+        linspline.precomputeSegmentLengths(r);
+        linspline.precomputeTotalLength(r);
+        return r;
+    },
+
+    computeSegmentLength: function(spline, segmentI) {
+        const end = spline.segments[segmentI];
+        const start = segmentI === 0? spline.start
+            : spline.segments[segmentI - 1];
+        return start.clone().distance(end);
+    },
+
+    precomputeSegmentLengths: function(spline) {
+        spline.segmentLengths = new Array(spline.segments.length);
+        for (let segI = 0; segI < spline.segments.length; segI += 1) {
+            spline.segmentLengths[segI] = linspline
+                .computeSegmentLength(spline, segI);
+        }
+    },
+
+    precomputeTotalLength: function(spline) {
+        spline.totalLength = spline.segmentLengths.reduce((a, b) => a + b, 0);
+    },
 
     inSegment: function(spline, segmentI, t) {
         if (segmentI < 0 || spline.segments.length === 0) {
@@ -58,13 +81,6 @@ export const linspline = Object.freeze({
         return start.clone().lerp(end.clone(), t);
     },
 
-    segmentLength: function(spline, segmentI) {
-        const end = spline.segments[segmentI];
-        const start = segmentI === 0? spline.start
-            : spline.segments[segmentI - 1];
-        return start.clone().distance(end);
-    },
-
     Point: function(existing) {
         return {
             segmentI: existing ? existing.segmentI || 0 : 0,
@@ -74,7 +90,7 @@ export const linspline = Object.freeze({
 
     advancePointToEnd: function(spline, point) {
         point.segmentI = spline.segments.length - 1;
-        point.dist = linspline.segmentLength(spline, point.segmentI);
+        point.dist = spline.segmentLengths[point.segmentI];
     },
 
     advancePoint: function(spline, point, dist) {
@@ -82,7 +98,7 @@ export const linspline = Object.freeze({
         let remDist = dist + point.dist;
         point.dist = 0.0;
         while (point.segmentI < spline.segments.length) {
-            const segLen = linspline.segmentLength(spline, point.segmentI);
+            const segLen = spline.segmentLengths[point.segmentI];
             if (segLen > remDist) {
                 point.dist = remDist;
                 return dist;
@@ -104,7 +120,7 @@ export const linspline = Object.freeze({
         point.dist = 0;
         while (point.segmentI > 0) {
             point.segmentI -= 1;
-            const segLen = linspline.segmentLength(spline, point.segmentI);
+            const segLen = spline.segmentLengths[point.segmentI];
             if (segLen > remDist) {
                 point.dist = segLen - remDist;
                 return dist;
@@ -115,7 +131,7 @@ export const linspline = Object.freeze({
     },
 
     atPoint: function(spline, point) {
-        const t = point.dist / linspline.segmentLength(spline, point.segmentI);
+        const t = point.dist / spline.segmentLengths[point.segmentI];
         return linspline.inSegment(spline, point.segmentI, t);
     },
 
@@ -250,14 +266,6 @@ export const linspline = Object.freeze({
         const maxY = Math.max(start.y, end.y);
         const maxZ = Math.max(start.z, end.z);
         return new Vector3(maxX, maxY, maxZ);
-    },
-
-    computeLength: function(spline) {
-        let l = 0.0;
-        for (let segI = 0; segI < spline.segments.length; segI += 1) {
-            l += linspline.segmentLength(spline, segI);
-        }
-        return l;
     }
 
 });

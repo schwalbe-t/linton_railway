@@ -1,4 +1,5 @@
 
+using System.Collections.Immutable;
 using System.Numerics;
 using Newtonsoft.Json;
 
@@ -64,6 +65,6 @@ public sealed record QuadSpline(
                 builtSegments.Add(InSegment(segI, t));
             }
         }
-        return new LinSpline(Start, builtSegments);
+        return new LinSpline(Start, builtSegments.ToImmutableList());
     }
 }

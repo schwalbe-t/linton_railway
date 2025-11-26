@@ -109,7 +109,7 @@ function onWinnersAnnounced(winners) {
         item.appendChild(placement);
         const name = document.createElement("div");
         name.classList.add("game-winner-name");
-        name.innerText = winner.name;
+        name.innerText = filterProfanities(winner.name);
         item.appendChild(name);
         const points = document.createElement("div");
         points.classList.add("game-winner-score");

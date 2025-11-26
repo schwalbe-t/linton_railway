@@ -680,7 +680,7 @@ export class TrackNetwork {
                         tiles.toUnits(this.stationLocBuffData[offset + 1])
                     );
                     this.regionTexts.push(new RegionText(
-                        center, owner.name
+                        center, filterProfanities(owner.name)
                     ));
                 }
             }

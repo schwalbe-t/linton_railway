@@ -34,3 +34,6 @@ wwwroot/*.bundle.js
 # Mac/Linux system files
 .DS_Store
 Thumbs.db
+
+# Azure
+.azure

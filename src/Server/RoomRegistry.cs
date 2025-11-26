@@ -138,19 +138,20 @@ public static class RoomRegistry
     /// <returns>The Id of the found room, or null if none was found</returns>
     public static Guid? FindPublicRoom()
     {
+        DateTime now = DateTime.UtcNow;
         Guid? bestId = null;
         int bestPlayerC = 0;
-        long bestLastGame = long.MaxValue;
+        double bestWaitTime = double.MaxValue;
         foreach (var entry in _publicRooms)
         {
             int roomPlayerC = entry.Value.Connected.Count;
             if (roomPlayerC >= MaxNumPublicPlayers) { continue; }
             if (roomPlayerC < bestPlayerC) { continue; }
-            long roomLastGame = entry.Value.LastGameTime;
-            if (roomLastGame > bestLastGame) { continue; }
+            double waitTime = (now - entry.Value.LastGameTime).TotalSeconds;
+            if (waitTime > bestWaitTime) { continue; }
             bestId = entry.Key;
             bestPlayerC = roomPlayerC;
-            bestLastGame = roomLastGame;
+            bestWaitTime = waitTime;
         }
         return bestId;
     }

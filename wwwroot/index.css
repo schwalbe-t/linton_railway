@@ -20,6 +20,8 @@
     left: 50%;
     transform: translate(-50%, -50%);
     text-align: center;
+    display: flex;
+    flex-direction: column;
 }
 #room-selector > button {
     min-width: 35vmin;

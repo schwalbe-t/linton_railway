@@ -12,6 +12,9 @@ export class WorldUi {
     constructor(worldPos, element) {
         this.pos = new Vector3(worldPos);
         this.element = element;
+        this.oldPxLeft = null;
+        this.oldPxTop = null;
+        this.oldDepth = null;
         getWorldUiContainer().appendChild(this.element);
     }
 
@@ -21,14 +24,33 @@ export class WorldUi {
         const screenPos = new Vector3(
             renderer.viewProj.transformPoint(this.pos)
         );
+        const shouldBeHidden = Math.abs(screenPos.x) >= 1.25
+            || Math.abs(screenPos.z) >= 1.25;
+        if (shouldBeHidden) {
+            this.element.style.display = "none";
+            this.oldPxLeft = null;
+            this.oldPxTop = null;
+            this.oldDepth = null;
+            return;
+        }
+        this.element.style.display = "";
         screenPos
             .scale([1, -1, 1])
             .scale(0.5).add([0.5, 0.5, 0])
             .scale([buffer.displayWidth, buffer.displayHeight, 1]);
-        this.element.style.left = `${screenPos.x}px`;
-        this.element.style.top = `${screenPos.y}px`;
-        const zIndex = Math.round((1.0 - screenPos.z) * WorldUi.MAX_Z_INDEX);
-        this.element.style.zIndex = `${zIndex}`;
+        if (this.oldPxLeft !== screenPos.x) {
+            this.element.style.left = `${screenPos.x}px`;
+            this.oldPxLeft = screenPos.x;
+        }
+        if (this.oldPxTop !== screenPos.y) {
+            this.element.style.top = `${screenPos.y}px`;
+            this.oldPxTop = screenPos.y;
+        }
+        if (this.oldDepth !== screenPos.z) {
+            const zIndex = (1.0 - screenPos.z) * WorldUi.MAX_Z_INDEX;
+            this.element.style.zIndex = `${Math.round(zIndex)}`;
+            this.oldDepth = screenPos.z;
+        }
     }
 
     delete() {

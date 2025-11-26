@@ -51,7 +51,7 @@ public sealed class Train
     const int MinTrainLenDiff = -1;
     const int MaxTrainLenDiff = +1;
 
-    const LocomotiveType DefaultLocoType = LocomotiveType.Diesel;
+    const LocomotiveType DefaultLocoType = LocomotiveType.Steam;
     const TrainColor DefaultColor = TrainColor.Green;
 
     /// <summary>

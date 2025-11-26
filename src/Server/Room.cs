@@ -24,6 +24,11 @@ public class Room(Guid id, RoomSettings settings)
     /// is connected to the same room.
     /// </summary>
     public const int MaxNumConnections = 32;
+    /// <summary>
+    /// The minimum time between the end of the last game (or the creation of
+    /// the room) and the start of the next game.
+    /// </summary>
+    public static readonly TimeSpan MinGameInterval = TimeSpan.FromSeconds(10);
 
 
     readonly Lock _lock = new();
@@ -106,7 +111,7 @@ public class Room(Guid id, RoomSettings settings)
     /// The UNIX time stamp of the last time a game ended (or the point in time
     /// when the room was created).
     /// </summary>
-    public long LastGameTime = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+    public DateTime LastGameTime = DateTime.UtcNow;
 
     /// <summary>
     /// The unique identifier of this room.

@@ -11,7 +11,7 @@ namespace Linton.Server;
 /// </summary>
 public abstract class RoomState
 {
-    
+
     public abstract string TypeString { get; }
 
     public virtual void Update(Room room) { }
@@ -60,7 +60,9 @@ public abstract class RoomState
             bool allReady = room.Connected.Keys.All(
                 p => _ready.GetValueOrDefault(p)
             );
-            if (!allReady) { return; }
+            bool mayStart = allReady
+                && DateTime.UtcNow >= room.LastGameTime + Room.MinGameInterval;
+            if (!mayStart) { return; }
             Dictionary<Guid, string> playing = room.Connected
                 .ToDictionary(e => e.Key, e => e.Value.Name);
             var game = new GameInstance(playing, room.Settings);
@@ -102,7 +104,7 @@ public abstract class RoomState
             }
             Game.Update();
             if (!Game.HasEnded) { return; }
-            room.LastGameTime = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            room.LastGameTime = DateTime.UtcNow;
             room.State = new Waiting();
         }
     }

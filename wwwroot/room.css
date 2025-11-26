@@ -118,7 +118,7 @@
 }
 .setting-container > button {
     margin: 0;
-    min-width: 6rem;
+    min-width: 7.5rem;
     color: var(--text-main) !important;
 }
 .setting-container > .setting-positive {

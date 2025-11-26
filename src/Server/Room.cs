@@ -108,7 +108,7 @@ public class Room(Guid id, RoomSettings settings)
     }
 
     /// <summary>
-    /// The UNIX time stamp of the last time a game ended (or the point in time
+    /// The last time a game ended (or the point in time
     /// when the room was created).
     /// </summary>
     public DateTime LastGameTime = DateTime.UtcNow;

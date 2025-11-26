@@ -134,7 +134,7 @@ const LOCALIZATION = Object.freeze({
  <b>You should be automatically reconnected in a few seconds.</b>`,
         "de": `Die Verbindung zum Spielraum wurde unerwartet getrennt.
  <b>Du solltest nach einigen Sekunden automatisch erneut verbunden werden.</b>`,
-        "bg": `Връзката ви с игралната зала неочаквано прекъсна.
+        "bg": `Връзката ви с игралната стая неочаквано прекъсна.
  <b>Трябва автоматично да се свържете отново след няколко секунди.</b>`
     },
     "roomErrorBackToStart": {
